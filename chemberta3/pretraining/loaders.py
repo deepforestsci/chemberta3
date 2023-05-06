@@ -21,7 +21,7 @@ class PretrainingDatasetLoader(ABC):
         pass
 
     @abstractmethod
-    def _load_smiles_from_csv(self, csv_path: str, parallel: bool = True) -> np.ndarray:
+    def _load_smiles_from_csv(self, csv_path: str) -> np.ndarray:
         """
         Load shard from CSV file.
 
@@ -29,8 +29,6 @@ class PretrainingDatasetLoader(ABC):
         ----------
         csv_path: str
             Path to CSV file.
-        parallel: bool
-            Whether to use parallel processing.
 
         Returns
         -------
@@ -79,7 +77,7 @@ class PretrainingDatasetLoader(ABC):
             for s in shards:
                 local_shard_path = copy_file_from_s3(s)
                 smiles_arr = self._load_smiles_from_csv(
-                    local_shard_path, parallel=parallel
+                    local_shard_path,
                 )
                 if cleanup:
                     os.remove(local_shard_path)
@@ -96,6 +94,9 @@ class PretrainingDatasetLoader(ABC):
                         delayed(self.featurizer.featurize)(s) for s in smiles_chunk
                     )
                     X_arr = np.array([x[0] for x in X if x.size])
+                    new_total = total_samples_loaded + X_arr.shape[0]
+                    if new_total > max_num_samples:
+                        X_arr = X_arr[: max_num_samples - total_samples_loaded]
                     total_samples_loaded += X_arr.shape[0]
                     yield (
                         X_arr,
