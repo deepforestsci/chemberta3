@@ -118,7 +118,9 @@ class ZincLoader(PretrainingDatasetLoader):
     Load ZINC dataset from the cloud.
     """
 
-    def __init__(self, featurizer: dc.feat.Featurizer) -> None:
+    def __init__(
+        self, featurizer: dc.feat.Featurizer, chunk_size: int = int(1e4)
+    ) -> None:
         super().__init__()
         self.raw_cloud_dir: str = "s3://chemberta3/datasets/zinc20/csv/"
         self.local_data_dir: str = os.path.join(tempfile.gettempdir(), "zinc20")
@@ -127,7 +129,7 @@ class ZincLoader(PretrainingDatasetLoader):
         self.shards_available = [
             "s3://" + s for s in s3fs.S3FileSystem().ls(self.raw_cloud_dir)
         ]
-        self.chunk_size = int(1e4)
+        self.chunk_size = chunk_size
 
     def _load_smiles_from_csv(self, csv_path: str) -> np.ndarray:
         """
@@ -153,7 +155,9 @@ class PubchemLoader(PretrainingDatasetLoader):
     Load PubChem dataset from the cloud.
     """
 
-    def __init__(self, featurizer: dc.feat.Featurizer) -> None:
+    def __init__(
+        self, featurizer: dc.feat.Featurizer, chunk_size: int = int(1e4)
+    ) -> None:
         super().__init__()
         self.raw_cloud_dir: str = "s3://chemberta3/datasets/pubchem/csv/"
         self.local_data_dir: str = os.path.join(tempfile.gettempdir(), "pubchem")
@@ -162,7 +166,7 @@ class PubchemLoader(PretrainingDatasetLoader):
         self.shards_available = [
             "s3://" + s for s in s3fs.S3FileSystem().ls(self.raw_cloud_dir)
         ]
-        self.chunk_size = int(1e4)
+        self.chunk_size = chunk_size
 
     def _load_smiles_from_csv(self, csv_path: str) -> np.ndarray:
         """
