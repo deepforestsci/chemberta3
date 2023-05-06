@@ -97,7 +97,14 @@ class PretrainingDatasetLoader(ABC):
                     )
                     X_arr = np.array([x[0] for x in X if x.size])
                     total_samples_loaded += X_arr.shape[0]
-                    yield (X_arr, None, None, None)
+                    yield (
+                        X_arr,
+                        np.zeros((X_arr.shape[0], 1), np.float32),
+                        np.zeros((X_arr.shape[0], 1), np.float32),
+                        np.arange(
+                            total_samples_loaded - X_arr.shape[0], total_samples_loaded
+                        ),
+                    )
 
         shard_generator = _shard_generator(shards)
         ds_disk = dc.data.DiskDataset.create_dataset(
