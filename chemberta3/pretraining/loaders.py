@@ -129,42 +129,7 @@ class ZincLoader(PretrainingDatasetLoader):
         ]
         self.chunk_size = int(1e4)
 
-    def _load_smiles_from_csv(self, csv_path: str, parallel: bool = True) -> np.ndarray:
-        """
-        Load shard from CSV file.
-
-        Parameters
-        ----------
-        csv_path: str
-            Path to CSV file.
-
-        Returns
-        -------
-        smiles: np.ndarray
-            Array of SMILES strings.
-        """
-        df = pd.read_csv(csv_path)
-        smiles = df["smiles"].values
-        return smiles
-
-
-class ZincLoader(PretrainingDatasetLoader):
-    """
-    Load ZINC dataset from the cloud.
-    """
-
-    def __init__(self, featurizer: dc.feat.Featurizer) -> None:
-        super().__init__()
-        self.raw_cloud_dir: str = "s3://chemberta3/datasets/zinc20/csv/"
-        self.local_data_dir: str = os.path.join(tempfile.gettempdir(), "zinc20")
-        self.featurizer = featurizer
-
-        self.shards_available = [
-            "s3://" + s for s in s3fs.S3FileSystem().ls(self.raw_cloud_dir)
-        ]
-        self.chunk_size = int(1e4)
-
-    def _load_smiles_from_csv(self, csv_path: str, parallel: bool = True) -> np.ndarray:
+    def _load_smiles_from_csv(self, csv_path: str) -> np.ndarray:
         """
         Load shard from CSV file.
 
@@ -199,7 +164,7 @@ class PubchemLoader(PretrainingDatasetLoader):
         ]
         self.chunk_size = int(1e4)
 
-    def _load_smiles_from_csv(self, csv_path: str, parallel: bool = True) -> np.ndarray:
+    def _load_smiles_from_csv(self, csv_path: str) -> np.ndarray:
         """
         Load shard from CSV file.
 
