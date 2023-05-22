@@ -1,6 +1,7 @@
 import argparse
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union, Optional
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -9,8 +10,9 @@ import torch
 import deepchem as dc
 from deepchem.feat import MolGraphConvFeaturizer
 
-from custom_datasets import load_nek
-from model_loaders import load_infograph
+from .custom_datasets import load_nek
+from .model_loaders import load_infograph, load_chemberta
+
 
 DATASET_MAPPING = {
     "bace_classification": {
@@ -58,10 +60,12 @@ DATASET_MAPPING = {
 
 MODEL_MAPPING = {
     "infograph": load_infograph,
+    "chemberta": load_chemberta,
 }
 
 FEATURIZER_MAPPING = {
     "molgraphconv": MolGraphConvFeaturizer(use_edges=True),
+    "dummy": dc.feat.DummyFeaturizer(),
 }
 
 
@@ -80,7 +84,7 @@ class BenchmarkingDatasetLoader:
         return list(self.dataset_mapping.keys())
 
     def load_dataset(
-        self, dataset_name: str, featurizer: dc.feat.Featurizer
+        self, dataset_name: str, featurizer: dc.feat.Featurizer, **kwargs
     ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...], List[dc.trans.Transformer], str]:
         """Load a dataset.
 
@@ -108,7 +112,7 @@ class BenchmarkingDatasetLoader:
         dataset_loader = self.dataset_mapping[dataset_name]["loader"]
         output_type = self.dataset_mapping[dataset_name]["output_type"]
         tasks, datasets, transformers = dataset_loader(
-            featurizer=featurizer, splitter=None
+            featurizer=featurizer, splitter=None, **kwargs
         )
         return tasks, datasets, transformers, output_type
 
@@ -120,7 +124,7 @@ class BenchmarkingModelLoader:
     """
 
     def __init__(
-        self, loss: dc.models.losses.Loss, metrics: List[dc.metrics.Metric]
+        self, loss: Optional[dc.models.losses.Loss] = None, metrics: Optional[List[dc.metrics.Metric]] = None
     ) -> None:
         """Initialize a BenchmarkingModelLoader.
 
@@ -140,7 +144,8 @@ class BenchmarkingModelLoader:
         model_name: str,
         checkpoint_path: str = None,
         model_loading_kwargs: Dict = {},
-    ) -> dc.models.torch_models.modular.ModularTorchModel:
+        task: str = 'regression',
+    ) -> Union[dc.models.torch_models.modular.ModularTorchModel, dc.models.torch_models.TorchModel]:
         """Load a model.
 
         Parameters
@@ -151,6 +156,8 @@ class BenchmarkingModelLoader:
             Path to checkpoint to load. If None, will not load a checkpoint and will return a new model.
         model_loading_kwargs: Dict, optional (default {})
             Keyword arguments to pass to the model loader.
+        task: str, (default regression)
+            The specific training task configuration for the model.
 
         Returns
         -------
@@ -159,12 +166,17 @@ class BenchmarkingModelLoader:
         """
         if model_name not in self.model_mapping:
             raise ValueError(f"Model {model_name} not found in model mapping.")
-
         model_loader = self.model_mapping[model_name]
-        model = model_loader(
-            metrics=self.metrics,
-            **model_loading_kwargs,
-        )
+        if model_name == 'chemberta':
+            # We skip here metrics because pretraining model
+            # I am not sure how to use metrics during pretraining
+            # for chemberta model.
+            model = model_loader(task)
+        else:
+            model = model_loader(
+                metrics=self.metrics,
+                **model_loading_kwargs,
+            )
         if checkpoint_path is not None:
             model.load_pretrained_components(checkpoint=checkpoint_path)
         return model
@@ -266,7 +278,7 @@ def train(args):
         model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
 
     model = model_loader.load_model(
-        args.model_name, args.checkpoint, model_loading_kwargs
+        args.model_name, args.checkpoint, model_loading_kwargs, args.task
     )
 
     early_stopper = EarlyStopper(patience=args.patience)
@@ -303,6 +315,7 @@ def train(args):
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--model_name", type=str, default="infograph")
+    argparser.add_argument("--task", type=str, default="regression")
     argparser.add_argument("--featurizer_name", type=str, default="molgraphconv")
     argparser.add_argument("--dataset_name", type=str, default="nek")
     argparser.add_argument("--checkpoint", type=str, default=None)
