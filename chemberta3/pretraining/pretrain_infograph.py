@@ -25,7 +25,6 @@ def train(args):
         ds, frac_train=1.0 - args.frac_valid, frac_valid=args.frac_valid, frac_test=0.0
     )
     num_feat = max([ds.X[i].num_node_features for i in range(min(len(ds), 1e5))])
-    edge_dim = max([ds.X[i].num_edge_features for i in range(min(len(ds), 1e5))])
 
     device = "cpu"
     if torch.cuda.is_available():
@@ -33,9 +32,6 @@ def train(args):
 
     infograph_build_kwargs = {
         "num_features": num_feat,
-        "edge_features": edge_dim,
-        "use_unsup_loss": True,
-        "separate_encoder": False,
         "device": device,
     }
 
@@ -43,7 +39,9 @@ def train(args):
         with tune.checkpoint_dir(0) as checkpoint_dir:
             model = InfoGraphModel(
                 **infograph_build_kwargs,
-                dim=config["dim"],
+                embedding_dim=config["embedding_dim"],
+                num_gc_layers=config["num_gc_layers"],
+                prior=config["prior"],
                 learning_rate=config["lr"],
                 model_dir=checkpoint_dir,
             )
@@ -53,8 +51,11 @@ def train(args):
         return
 
     config = {
-        "dim": tune.lograndint(4, 9, base=2),
+        "embedding_dim": tune.lograndint(4, 9, base=2),
+        "num_gc_layers": tune.randint(3, 10),
         "lr": tune.loguniform(1e-4, 1e-1),
+        "prior": tune.choice([True, False]),
+        "gamma": tune.quniform(0.05, 0.2, 0.05),
     }
     reporter = CLIReporter(metric_columns=["loss"])
     result = tune.run(
@@ -71,13 +72,13 @@ def train(args):
     print("Best trial config: {}".format(best_trial.config))
     best_trained_model = InfoGraphModel(
         **infograph_build_kwargs,
-        dim=best_trial.config["dim"],
+        embedding_dim=best_trial.config["embedding_dim"],
+        num_gc_layers=best_trial.config["num_gc_layers"],
+        prior=best_trial.config["prior"],
         learning_rate=best_trial.config["lr"],
         model_dir=args.output_dir,
     )
-    best_trained_model.load_pretrained_components(
-        model_dir=best_trial.checkpoint.dir_or_data
-    )
+    best_trained_model.load_from_pretrained(model_dir=best_trial.checkpoint.dir_or_data)
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
     best_trained_model.save_checkpoint(
