@@ -7,4 +7,6 @@ ray[tune]~=2.4.0
 dgl-cu111
 torch==1.11.0+cu113
 torch-geometric
+torch-sparse
 pytorch-lightning==1.6.5
+s3fs
