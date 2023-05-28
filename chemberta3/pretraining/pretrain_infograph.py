@@ -45,9 +45,9 @@ def train(args):
                 learning_rate=config["lr"],
                 model_dir=checkpoint_dir,
             )
-        # TODO: compute validation loss; what does this mean with infograph?
-        loss = model.fit(train_ds, nb_epoch=args.num_epochs)
-        tune.report(loss=loss)
+        # TODO: compute validation loss; how to do this with infograph?
+        train_loss = model.fit(train_ds, nb_epoch=args.num_epochs)
+        tune.report(loss=train_loss)
         return
 
     config = {
