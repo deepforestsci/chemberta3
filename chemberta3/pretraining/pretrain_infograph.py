@@ -97,6 +97,6 @@ if __name__ == "__main__":
     argparser.add_argument("--seed", type=int, default=123)
     argparser.add_argument("--frac_valid", type=float, default=0.01)
     argparser.add_argument("--output_dir", type=str, default="./best_infograph_model")
-    argparser.add_argument("--num_samples", type=int, default=10)
+    argparser.add_argument("--num_trials", type=int, default=10)
     args = argparser.parse_args()
     train(args)
