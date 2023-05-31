@@ -1,9 +1,10 @@
 import deepchem as dc
 from deepchem.models.torch_models import InfoGraphModel
-from typing import List
+from typing import List, Optional
 
 
-def load_infograph(num_feat: int, edge_dim: int, metrics: List[dc.metrics.Metric]):
+def load_infograph(num_feat: int, edge_dim: int,
+                   metrics: List[dc.metrics.Metric]):
     """Load an InfoGraph model.
     Parameters
     ----------

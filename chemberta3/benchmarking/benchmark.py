@@ -13,7 +13,6 @@ from deepchem.feat import MolGraphConvFeaturizer
 from .custom_datasets import load_nek
 from .model_loaders import load_infograph, load_chemberta
 
-
 DATASET_MAPPING = {
     "bace_classification": {
         "loader": dc.molnet.load_bace_classification,
@@ -40,8 +39,14 @@ DATASET_MAPPING = {
         "loader": dc.molnet.load_hiv,
         "output_type": "classification",
     },
-    "muv": {"loader": dc.molnet.load_muv, "output_type": "classification"},
-    "pcba": {"loader": dc.molnet.load_pcba, "output_type": "classification"},
+    "muv": {
+        "loader": dc.molnet.load_muv,
+        "output_type": "classification"
+    },
+    "pcba": {
+        "loader": dc.molnet.load_pcba,
+        "output_type": "classification"
+    },
     "qm9": {
         "dataset_type": "regression",
         "load_fn": dc.molnet.load_qm9,
@@ -85,7 +90,8 @@ class BenchmarkingDatasetLoader:
 
     def load_dataset(
         self, dataset_name: str, featurizer: dc.feat.Featurizer, **kwargs
-    ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...], List[dc.trans.Transformer], str]:
+    ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...],
+               List[dc.trans.Transformer], str]:
         """Load a dataset.
 
         Parameters
@@ -107,13 +113,14 @@ class BenchmarkingDatasetLoader:
             Type of output (e.g. "classification" or "regression").
         """
         if dataset_name not in self.dataset_mapping:
-            raise ValueError(f"Dataset {dataset_name} not found in dataset mapping.")
+            raise ValueError(
+                f"Dataset {dataset_name} not found in dataset mapping.")
 
         dataset_loader = self.dataset_mapping[dataset_name]["loader"]
         output_type = self.dataset_mapping[dataset_name]["output_type"]
-        tasks, datasets, transformers = dataset_loader(
-            featurizer=featurizer, splitter=None, **kwargs
-        )
+        tasks, datasets, transformers = dataset_loader(featurizer=featurizer,
+                                                       splitter=None,
+                                                       **kwargs)
         return tasks, datasets, transformers, output_type
 
 
@@ -123,9 +130,9 @@ class BenchmarkingModelLoader:
     This class is used to load models for benchmarking. It is used to load relevant pre-trained models
     """
 
-    def __init__(
-        self, loss: Optional[dc.models.losses.Loss] = None, metrics: Optional[List[dc.metrics.Metric]] = None
-    ) -> None:
+    def __init__(self,
+                 loss: Optional[dc.models.losses.Loss] = None,
+                 metrics: Optional[List[dc.metrics.Metric]] = None) -> None:
         """Initialize a BenchmarkingModelLoader.
 
         Parameters
@@ -142,10 +149,13 @@ class BenchmarkingModelLoader:
     def load_model(
         self,
         model_name: str,
-        checkpoint_path: str = None,
+        checkpoint_path: Optional[str] = None,
+        from_hf_checkpoint=False,
         model_loading_kwargs: Dict = {},
         task: str = 'regression',
-    ) -> Union[dc.models.torch_models.modular.ModularTorchModel, dc.models.torch_models.TorchModel]:
+        tokenizer_path: Optional[str] = None,
+    ) -> Union[dc.models.torch_models.modular.ModularTorchModel,
+               dc.models.torch_models.TorchModel]:
         """Load a model.
 
         Parameters
@@ -171,20 +181,28 @@ class BenchmarkingModelLoader:
             # We skip here metrics because pretraining model
             # I am not sure how to use metrics during pretraining
             # for chemberta model.
-            model = model_loader(task)
+            model = model_loader(task=task, tokenizer_path=tokenizer_path)
         else:
             model = model_loader(
                 metrics=self.metrics,
                 **model_loading_kwargs,
             )
         if checkpoint_path is not None:
-            model.load_pretrained_components(checkpoint=checkpoint_path)
+            if model_name == 'chemberta':
+                # a special case for chemberta model - chemberta model can also be loaded from huggingface checkpoint while other models (deepchem models) can only be loaded from deepchem checkpoint and hence, don't have the `from_hf_checkpoint` argument
+                model.load_from_pretrained(
+                    model_dir=checkpoint_path,
+                    from_hf_checkpoint=from_hf_checkpoint)
+            else:
+                model.load_pretrained_components(checkpoint=checkpoint_path)
         return model
 
 
 def get_infograph_loading_kwargs(dataset):
-    num_feat = max([dataset.X[i].num_node_features for i in range(len(dataset))])
-    edge_dim = max([dataset.X[i].num_edge_features for i in range(len(dataset))])
+    num_feat = max(
+        [dataset.X[i].num_node_features for i in range(len(dataset))])
+    edge_dim = max(
+        [dataset.X[i].num_edge_features for i in range(len(dataset))])
     return {"num_feat": num_feat, "edge_dim": edge_dim}
 
 
@@ -254,32 +272,24 @@ def train(args):
     featurizer = featurizer_loader.load_featurizer(args.featurizer_name)
 
     tasks, datasets, transformers, output_type = dataset_loader.load_dataset(
-        args.dataset_name, featurizer
-    )
+        args.dataset_name, featurizer)
     unsplit_dataset = datasets[0]
     train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(
-        unsplit_dataset
-    )
+        unsplit_dataset)
 
-    metrics = (
-        [dc.metrics.Metric(dc.metrics.pearson_r2_score)]
-        if output_type == "regression"
-        else [dc.metrics.Metric(dc.metrics.auc, mode="classification")]
-    )
-    loss = (
-        dc.models.losses.L2Loss()
-        if output_type == "regression"
-        else dc.models.losses.BinaryCrossEntropy()
-    )
+    metrics = ([dc.metrics.Metric(dc.metrics.pearson_r2_score)]
+               if output_type == "regression" else
+               [dc.metrics.Metric(dc.metrics.auc, mode="classification")])
+    loss = (dc.models.losses.L2Loss() if output_type == "regression" else
+            dc.models.losses.BinaryCrossEntropy())
 
     model_loader = BenchmarkingModelLoader(loss=loss, metrics=metrics)
     model_loading_kwargs = {}
     if args.model_name == "infograph":
         model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
 
-    model = model_loader.load_model(
-        args.model_name, args.checkpoint, model_loading_kwargs, args.task
-    )
+    model = model_loader.load_model(args.model_name, args.checkpoint,
+                                    model_loading_kwargs, args.task)
 
     early_stopper = EarlyStopper(patience=args.patience)
 
@@ -288,8 +298,8 @@ def train(args):
         eval_preds = model.predict(valid_dataset)
         eval_loss_fn = loss._create_pytorch_loss()
         eval_loss = torch.sum(
-            eval_loss_fn(torch.Tensor(eval_preds), torch.Tensor(valid_dataset.y))
-        ).item()
+            eval_loss_fn(torch.Tensor(eval_preds),
+                         torch.Tensor(valid_dataset.y))).item()
 
         eval_metrics = model.evaluate(
             valid_dataset,
@@ -304,8 +314,7 @@ def train(args):
     # compute test metrics
     test_metrics = model.evaluate(test_dataset, metrics=metrics)
     test_metrics_df = pd.DataFrame.from_dict(
-        {k: np.array(v) for k, v in test_metrics.items()}, orient="index"
-    )
+        {k: np.array(v) for k, v in test_metrics.items()}, orient="index")
     print(f"Test metrics: {test_metrics_df}")
     test_metrics_df.to_csv(
         f"{args.output_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
@@ -316,7 +325,9 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--model_name", type=str, default="infograph")
     argparser.add_argument("--task", type=str, default="regression")
-    argparser.add_argument("--featurizer_name", type=str, default="molgraphconv")
+    argparser.add_argument("--featurizer_name",
+                           type=str,
+                           default="molgraphconv")
     argparser.add_argument("--dataset_name", type=str, default="nek")
     argparser.add_argument("--checkpoint", type=str, default=None)
     argparser.add_argument("--num_epochs", type=int, default=50)
