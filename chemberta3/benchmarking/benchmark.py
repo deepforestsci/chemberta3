@@ -168,6 +168,10 @@ class BenchmarkingModelLoader:
             Keyword arguments to pass to the model loader.
         task: str, (default regression)
             The specific training task configuration for the model.
+        from_hf_checkpoint: bool, (default False)
+            Specify whether the checkpoint is a huggingface checkpoint
+        tokenizer_path: str (None)
+            Path to huggingface tokenizer
 
         Returns
         -------

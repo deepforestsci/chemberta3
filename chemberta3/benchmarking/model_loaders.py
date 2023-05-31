@@ -31,3 +31,24 @@ def load_infograph(num_feat: int, edge_dim: int,
         metrics=metrics,
     )
     return model
+
+
+def load_chemberta(task: str,
+                   tokenizer_path: str = 'DeepChem/ChemBERTa-77M-MLM'):
+    """Load a model.
+
+    Parameters
+    ----------
+    task: str, (default regression)
+        The specific training task configuration for the model.
+    tokenizer_path: str (required)
+        Path to tokenizer for tokenizing SMILES string
+
+    Returns
+    -------
+    model: dc.models.torch_models.Chemberta
+        Loaded chemberta model.
+    """
+    from deepchem.models.torch_models.chemberta import Chemberta
+    model = Chemberta(task=task, tokenizer_path=tokenizer_path)
+    return model
