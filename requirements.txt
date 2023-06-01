@@ -1,2 +1,4 @@
 numpy~=1.24.2
 pandas~=1.2.3
+# for custom_datasets.load_nek
+s3fs
