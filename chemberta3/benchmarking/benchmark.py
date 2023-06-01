@@ -325,6 +325,11 @@ def train(args):
     )
 
 def evaluate(args):
+    """Evaluate method
+
+    Evaluates the specified model on the specified dataset using the specified featurizer,
+    based on the command line arguments provided.
+    """
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
