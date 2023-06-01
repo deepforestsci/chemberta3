@@ -324,6 +324,35 @@ def train(args):
         f"{args.output_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
     )
 
+def evaluate(args):
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+
+    dataset_loader = BenchmarkingDatasetLoader()
+    featurizer_loader = BenchmarkingFeaturizerLoader()
+
+    splitter = dc.splits.ScaffoldSplitter()
+    featurizer = featurizer_loader.load_featurizer(args.featurizer_name)
+
+    tasks, datasets, transformers, output_type = dataset_loader.load_dataset(
+        args.dataset_name, featurizer)
+    unsplit_dataset = datasets[0]
+    train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(
+        unsplit_dataset)
+
+    if args.task == 'mlm':
+        metrics = [dc.metrics.Metric(dc.metrics.accuracy_score)]
+
+    model_loader = BenchmarkingModelLoader(metrics=metrics)
+    model_loading_kwargs = {}
+    if args.model_name == "infograph":
+        model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
+
+    model = model_loader.load_model(model_name=args.model_name, checkpoint_path=args.checkpoint, from_hf_checkpoint=args.from_hf_checkpoint, task=args.task, tokenizer_path=args.tokenizer_path)
+
+    test_metrics = model.evaluate(test_dataset, metrics=metrics)
+    print (test_metrics)
+    return
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
@@ -338,5 +367,12 @@ if __name__ == "__main__":
     argparser.add_argument("--patience", type=int, default=5)
     argparser.add_argument("--seed", type=int, default=123)
     argparser.add_argument("--output_dir", type=str, default=".")
+    # NOTE There might be a better argument than job
+    argparser.add_argument("--job", type=str, default="train")
+    argparser.add_argument("--from-hf-checkpoint", action=argparse.BooleanOptionalAction)
     args = argparser.parse_args()
-    train(args)
+
+    if args.job == 'train':
+        train(args)
+    elif args.job == 'evaluate':
+        evaluate(args)
