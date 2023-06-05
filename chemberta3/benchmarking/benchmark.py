@@ -1,7 +1,7 @@
 import argparse
 from dataclasses import dataclass
 
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple, Union, Optional
 from functools import partial
 
 import numpy as np
@@ -14,7 +14,7 @@ from deepchem.feat import MolGraphConvFeaturizer, CircularFingerprint
 from deepchem.models import GraphConvModel, WeaveModel
 
 from custom_datasets import load_nek
-from model_loaders import load_infograph, load_random_forest
+from model_loaders import load_infograph, load_chemberta, load_random_forest
 
 DATASET_MAPPING = {
     "bace_classification": {
@@ -82,6 +82,7 @@ MODEL_MAPPING = {
     "random_forest": load_random_forest,
     "graphconv": GraphConvModel,
     "weave": WeaveModel,
+    "chemberta": load_chemberta,
 }
 
 FEATURIZER_MAPPING = {
@@ -89,6 +90,7 @@ FEATURIZER_MAPPING = {
     "ecfp": CircularFingerprint(),
     "convmol": dc.feat.ConvMolFeaturizer(),
     "weave": dc.feat.WeaveFeaturizer(max_pair_distance=2),
+    "dummy": dc.feat.DummyFeaturizer(),
 }
 
 
@@ -107,7 +109,7 @@ class BenchmarkingDatasetLoader:
         return list(self.dataset_mapping.keys())
 
     def load_dataset(
-        self, dataset_name: str, featurizer: dc.feat.Featurizer, data_dir: Optional[str] = None
+        self, dataset_name: str, featurizer: dc.feat.Featurizer, data_dir: Optional[str] = None, **kwargs
     ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...], List[dc.trans.Transformer], str]:
         """Load a dataset.
 
@@ -165,10 +167,13 @@ class BenchmarkingModelLoader:
     def load_model(
         self,
         model_name: str,
-        output_type: str,
-        checkpoint_path: str = None,
+        checkpoint_path: Optional[str] = None,
+        from_hf_checkpoint=False,
         model_loading_kwargs: Dict = {},
-    ) -> dc.models.torch_models.modular.ModularTorchModel:
+        task: str = 'regression',
+        tokenizer_path: Optional[str] = None,
+    ) -> Union[dc.models.torch_models.modular.ModularTorchModel,
+               dc.models.torch_models.TorchModel]:
         """Load a model.
 
         Parameters
@@ -179,6 +184,12 @@ class BenchmarkingModelLoader:
             Path to checkpoint to load. If None, will not load a checkpoint and will return a new model.
         model_loading_kwargs: Dict, optional (default {})
             Keyword arguments to pass to the model loader.
+        task: str, (default regression)
+            The specific training task configuration for the model.
+        from_hf_checkpoint: bool, (default False)
+            Specify whether the checkpoint is a huggingface checkpoint
+        tokenizer_path: str (None)
+            Path to huggingface tokenizer
 
         Returns
         -------
@@ -187,13 +198,30 @@ class BenchmarkingModelLoader:
         """
         if model_name not in self.model_mapping:
             raise ValueError(f"Model {model_name} not found in model mapping.")
-
         model_loader = self.model_mapping[model_name]
         model = model_loader(
             checkpoint_path=checkpoint_path,
             output_type=output_type,
             **model_loading_kwargs,
         )
+        if model_name == 'chemberta':
+            # We skip here metrics because pretraining model does not have matrics integrated.
+            model = model_loader(task=task, tokenizer_path=tokenizer_path)
+        else:
+            model = model_loader(
+                metrics=self.metrics,
+                **model_loading_kwargs,
+            )
+        if checkpoint_path is not None:
+            if model_name == 'chemberta':
+                # a special case for chemberta model - chemberta model can also be loaded from
+                # huggingface checkpoint while other models (deepchem models) can only be loaded
+                # from deepchem checkpoint and hence, don't have the `from_hf_checkpoint` argument
+                model.load_from_pretrained(
+                    model_dir=checkpoint_path,
+                    from_hf_checkpoint=from_hf_checkpoint)
+            else:
+                model.load_pretrained_components(checkpoint=checkpoint_path)
         return model
 
 
@@ -298,7 +326,8 @@ def train(args):
         model_name=args.model_name,
         output_type=output_type,
         checkpoint_path=args.checkpoint,
-        model_loading_kwargs = model_loading_kwargs
+        model_loading_kwargs = model_loading_kwargs,
+        task=args.task
     )
 
     early_stopper = EarlyStopper(patience=args.patience)
