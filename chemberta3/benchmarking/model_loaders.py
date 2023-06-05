@@ -1,5 +1,6 @@
 import deepchem as dc
 from deepchem.models.torch_models import InfoGraphModel
+
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from typing import List, Optional, Dict
 
@@ -62,4 +63,25 @@ def load_random_forest(output_type: str, hyperparams: Optional[Dict] = None, che
         model = dc.models.SklearnModel(base_model(**hyperparams))
     else:
         model = dc.models.SklearnModel(base_model())
+    return model
+
+
+def load_chemberta(task: str,
+                   tokenizer_path: str = 'DeepChem/ChemBERTa-77M-MLM'):
+    """Load a model.
+
+    Parameters
+    ----------
+    task: str, (default regression)
+        The specific training task configuration for the model.
+    tokenizer_path: str (required)
+        Path to tokenizer for tokenizing SMILES string
+
+    Returns
+    -------
+    model: dc.models.torch_models.Chemberta
+        Loaded chemberta model.
+    """
+    from deepchem.models.torch_models.chemberta import Chemberta
+    model = Chemberta(task=task, tokenizer_path=tokenizer_path)
     return model
