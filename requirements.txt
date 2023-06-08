@@ -1,2 +1,9 @@
 numpy~=1.24.2
 pandas~=1.2.3
+ray[tune]~=2.4.0
+-f https://data.dgl.ai/wheels/repo.html
+dgl-cu111
+torch
+torchvision
+torchaudio
+s3fs
