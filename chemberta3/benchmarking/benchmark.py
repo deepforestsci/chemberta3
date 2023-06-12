@@ -189,7 +189,7 @@ class BenchmarkingModelLoader:
         from_hf_checkpoint: bool, (default False)
             Specify whether the checkpoint is a huggingface checkpoint
         tokenizer_path: str (None)
-            Path to huggingface tokenizer
+            Path to huggingface tokenizer. This option is used only for models from HuggingFace ecosystem, like chemberta and not other models.
 
         Returns
         -------
