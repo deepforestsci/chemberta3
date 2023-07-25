@@ -1,3 +1,4 @@
+import yaml
 import argparse
 from dataclasses import dataclass
 
@@ -427,7 +428,8 @@ def evaluate(seed: int, featurizer_name: str, dataset_name: str,
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("--model_name", type=str, default="infograph")
+    argparser.add_argument('--config', type=argparse.FileType('r'), help='config file path', default=None)
+    argparser.add_argument("--model", type=str, default="infograph")
     argparser.add_argument("--task", type=str, default="regression")
     argparser.add_argument("--featurizer_name",
                            type=str,
@@ -443,6 +445,12 @@ if __name__ == "__main__":
     argparser.add_argument("--job", type=str, default="train")
     argparser.add_argument("--from-hf-checkpoint", action=argparse.BooleanOptionalAction)
     args = argparser.parse_args()
+
+    if args.config:
+        config_dict = yaml.load(args.config, Loader=yaml.FullLoader)
+        arg_dict = args.__dict__
+        for key, value in config_dict.items():
+            arg_dict[key] = value
 
     if args.job == 'train':
         train(args)
