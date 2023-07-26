@@ -25,3 +25,8 @@ python benchmark.py --dataset_name=bace_regression --model_name=random_forest --
 ```
 python3 benchmark.py --model_name=graphconv --featurizer_name=convmol --dataset_name=delaney
 ```
+
+### Data preparation
+```
+python3 benchmark.py --prepare_data --dataset_name zinc5k --featurizer_name ecfp
+```

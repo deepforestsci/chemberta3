@@ -1,8 +1,21 @@
+import os
 import deepchem as dc
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from functools import partial
 import pandas as pd
 
+FEATURIZER_MAPPING = {
+    "molgraphconv": dc.feat.MolGraphConvFeaturizer(use_edges=True),
+    "ecfp": dc.feat.CircularFingerprint(),
+    "convmol": dc.feat.ConvMolFeaturizer(),
+    "weave": dc.feat.WeaveFeaturizer(max_pair_distance=2),
+    "dummy": dc.feat.DummyFeaturizer(),
+    "grover": dc.feat.GroverFeaturizer(features_generator=dc.feat.CircularFingerprint()),
+}
+
+def prepare_data(dataset_name, featurizer_name, data_dir: Optional[str] = None):
+    if dataset_name == 'zinc5k':
+        load_zinc5k(featurizer_name, data_dir)
 
 def load_nek(
     featurizer: dc.feat.Featurizer,
@@ -56,3 +69,15 @@ def load_nek(
     return [], [dc_dataset], []
 
 load_zinc250k = partial(dc.molnet.load_zinc15, dataset_size='250K')
+
+def load_zinc5k(featurizer_name, data_dir: Optional[str] = None):
+    filepath = 'data/zinc5k.csv'
+    featurizer = FEATURIZER_MAPPING[featurizer_name]
+    if data_dir is None:
+        data_dir = os.path.join('data', 'zinc5k-featurized', featurizer_name)
+
+    # Ideally, we don't need logp here - we should pass empty tasks ([]) but it casues error during model.fit call
+    loader = dc.data.CSVLoader(['logp'], feature_field='smiles', featurizer=featurizer, id_field='smiles')
+    dataset = loader.create_dataset(filepath)
+    dataset.move(data_dir)
+    return

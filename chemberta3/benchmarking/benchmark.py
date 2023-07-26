@@ -14,7 +14,7 @@ import deepchem as dc
 from deepchem.feat import MolGraphConvFeaturizer, CircularFingerprint
 from deepchem.models import GraphConvModel, WeaveModel
 
-from custom_datasets import load_nek, load_zinc250k
+from custom_datasets import load_nek, load_zinc250k, prepare_data, FEATURIZER_MAPPING
 from model_loaders import load_infograph, load_chemberta, load_random_forest
 
 DATASET_MAPPING = {
@@ -85,15 +85,6 @@ MODEL_MAPPING = {
     "weave": WeaveModel,
     "chemberta": load_chemberta,
 }
-
-FEATURIZER_MAPPING = {
-    "molgraphconv": MolGraphConvFeaturizer(use_edges=True),
-    "ecfp": CircularFingerprint(),
-    "convmol": dc.feat.ConvMolFeaturizer(),
-    "weave": dc.feat.WeaveFeaturizer(max_pair_distance=2),
-    "dummy": dc.feat.DummyFeaturizer(),
-}
-
 
 class BenchmarkingDatasetLoader:
     """A utility class for helping to load datasets for benchmarking.
@@ -426,6 +417,7 @@ if __name__ == "__main__":
     argparser.add_argument('--config', type=argparse.FileType('r'), help='config file path', default=None)
     argparser.add_argument('--train', help='train a model', default=False, action='store_true')
     argparser.add_argument('--evaluate', help='evaluate a model', default=False, action='store_true')
+    argparser.add_argument('--prepare_data', help='parse data', default=False, action='store_true')
     argparser.add_argument("--model_name", type=str, default="infograph")
     argparser.add_argument("--task", type=str, default="regression")
     argparser.add_argument("--featurizer_name",
@@ -449,9 +441,11 @@ if __name__ == "__main__":
         for key, value in config_dict.items():
             arg_dict[key] = value
 
+    if args.prepare_data:
+        prepare_data(dataset_name=args.dataset_name, featurizer_name=args.featurizer_name, data_dir=args.data_dir)
     if args.train:
         train(args)
-    elif args.evaluate:
+    if args.evaluate:
         evaluate(seed=args.seed, featurizer_name=args.featurizer_name, dataset_name=args.dataset_name,
         model_name=args.model_name, checkpoint_path=args.checkpoint_path,
         task=args.task, tokenizer_path=args.tokenizer_path,
