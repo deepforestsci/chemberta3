@@ -14,7 +14,7 @@ import deepchem as dc
 from deepchem.feat import MolGraphConvFeaturizer, CircularFingerprint
 from deepchem.models import GraphConvModel, WeaveModel
 
-from custom_datasets import load_nek
+from custom_datasets import load_nek, load_zinc250k
 from model_loaders import load_infograph, load_chemberta, load_random_forest
 
 DATASET_MAPPING = {
@@ -200,17 +200,13 @@ class BenchmarkingModelLoader:
         if model_name not in self.model_mapping:
             raise ValueError(f"Model {model_name} not found in model mapping.")
         model_loader = self.model_mapping[model_name]
-        model = model_loader(
-            checkpoint_path=checkpoint_path,
-            output_type=output_type,
-            **model_loading_kwargs,
-        )
         if model_name == 'chemberta':
             # We skip here metrics because pretraining model does not have matrics integrated.
             model = model_loader(task=task, tokenizer_path=tokenizer_path)
         else:
             model = model_loader(
-                metrics=self.metrics,
+                checkpoint_path=checkpoint_path,
+                task = task,
                 **model_loading_kwargs,
             )
         if checkpoint_path is not None:
@@ -317,7 +313,7 @@ def train(args):
         else dc.models.losses.BinaryCrossEntropy()
     )
 
-    model_loader = BenchmarkingModelLoader(loss=loss, metrics=metrics)
+    model_loader = BenchmarkingModelLoader(loss=loss)
     model_loading_kwargs = {}
     if args.model_name == "infograph":
         model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
@@ -325,7 +321,6 @@ def train(args):
         model_loading_kwargs = {'n_tasks': n_tasks, 'mode': output_type}
     model = model_loader.load_model(
         model_name=args.model_name,
-        output_type=output_type,
         checkpoint_path=args.checkpoint,
         model_loading_kwargs = model_loading_kwargs,
         task=args.task
@@ -429,7 +424,7 @@ def evaluate(seed: int, featurizer_name: str, dataset_name: str,
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--config', type=argparse.FileType('r'), help='config file path', default=None)
-    argparser.add_argument("--model", type=str, default="infograph")
+    argparser.add_argument("--model_name", type=str, default="infograph")
     argparser.add_argument("--task", type=str, default="regression")
     argparser.add_argument("--featurizer_name",
                            type=str,

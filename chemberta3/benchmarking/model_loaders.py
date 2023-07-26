@@ -32,12 +32,12 @@ def load_infograph(num_feat: int, edge_dim: int):
         model.load_pretrained_components(checkpoint=checkpoint_path)
     return model
 
-def load_random_forest(output_type: str, hyperparams: Optional[Dict] = None, checkpoint_path: Optional[str] = None, **kwargs):
+def load_random_forest(task: str, hyperparams: Optional[Dict] = None, checkpoint_path: Optional[str] = None, **kwargs):
     """Loads a random forest model
 
     Parameters
     ----------
-    output_type: str
+    task: str
         Type of dataset (classification or regression)
     hyperparams: Dict
         Parameters of the random forest classifier model
@@ -48,10 +48,10 @@ def load_random_forest(output_type: str, hyperparams: Optional[Dict] = None, che
     -------
     model: dc.models.SklearnModel
     """
-    assert output_type in ['classification', 'regression'], 'Dataset task should be either classification or regression'
-    if output_type == 'classification':
+    assert task in ['classification', 'regression'], 'Dataset task should be either classification or regression'
+    if task == 'classification':
         base_model = RandomForestClassifier
-    elif output_type == 'regression':
+    elif task == 'regression':
         base_model = RandomForestRegressor
 
     if checkpoint_path is not None:
