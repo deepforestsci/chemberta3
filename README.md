@@ -8,6 +8,11 @@ The `benchmark.py` script provides the ability to benchmark models against diffe
 Example command:
 ```python benchmark.py --dataset_name=delaney --model_name=infograph --featurizer_name=molgraphconv --checkpoint=checkpoint5.pt```
 
+## Benchmarking using a config file
+```
+python3 benchmark.py --config configs/delaney.yml
+```
+
 ### Benchmarking random forest
 
 ```
