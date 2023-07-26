@@ -424,6 +424,8 @@ def evaluate(seed: int, featurizer_name: str, dataset_name: str,
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
     argparser.add_argument('--config', type=argparse.FileType('r'), help='config file path', default=None)
+    argparser.add_argument('--train', help='train a model', default=False, action='store_true')
+    argparser.add_argument('--evaluate', help='evaluate a model', default=False, action='store_true')
     argparser.add_argument("--model_name", type=str, default="infograph")
     argparser.add_argument("--task", type=str, default="regression")
     argparser.add_argument("--featurizer_name",
@@ -447,9 +449,9 @@ if __name__ == "__main__":
         for key, value in config_dict.items():
             arg_dict[key] = value
 
-    if args.job == 'train':
+    if args.train:
         train(args)
-    elif args.job == 'evaluate':
+    elif args.evaluate:
         evaluate(seed=args.seed, featurizer_name=args.featurizer_name, dataset_name=args.dataset_name,
         model_name=args.model_name, checkpoint_path=args.checkpoint_path,
         task=args.task, tokenizer_path=args.tokenizer_path,
