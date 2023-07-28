@@ -276,29 +276,22 @@ class EarlyStopper:
         return False
 
 
-def train(args):
+def train(args, data_dir: str):
     """Training loop
 
     Trains the specified model on the specified dataset using the specified featurizer,
     based on the command line arguments provided.
 
     Writes metrics to the specified output directory.
+
+    Parameters
+    ----------
+    data_dir: str
+        Data directory for loading dataset
     """
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-
-    dataset_loader = BenchmarkingDatasetLoader()
-    featurizer_loader = BenchmarkingFeaturizerLoader()
-
-    splitter = dc.splits.ScaffoldSplitter()
-    featurizer = featurizer_loader.load_featurizer(args.featurizer_name)
-
-    tasks, datasets, transformers, output_type, n_tasks = dataset_loader.load_dataset(
-        args.dataset_name, featurizer, args.data_dir)
-
-    unsplit_dataset = datasets[0]
-    train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(
-        unsplit_dataset)
+    dataset = dc.data.DiskDataset(data_dir=data_dir)
 
     metrics = ([dc.metrics.Metric(dc.metrics.pearson_r2_score)]
                if output_type == "regression" else
@@ -475,7 +468,7 @@ if __name__ == "__main__":
     os.makedirs(exp_dir, exist_ok=True)
 
     if args.train:
-        train(args)
+        train(args, data_dir=args.data_dir)
     if args.evaluate:
         evaluate(seed=args.seed,
                  featurizer_name=args.featurizer_name,
