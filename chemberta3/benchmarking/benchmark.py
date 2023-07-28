@@ -1,18 +1,14 @@
 import yaml
 import argparse
 from dataclasses import dataclass
-
 from typing import Dict, List, Tuple, Union, Optional
-from functools import partial
 
 import numpy as np
 import pandas as pd
 import torch
 
 import deepchem as dc
-
-from deepchem.feat import MolGraphConvFeaturizer, CircularFingerprint
-from deepchem.models import GraphConvModel, WeaveModel
+from deepchem.models import GraphConvModel, WeaveModel, GroverModel
 
 from custom_datasets import load_nek, load_zinc250k, prepare_data, FEATURIZER_MAPPING
 from model_loaders import load_infograph, load_chemberta, load_random_forest
@@ -49,8 +45,16 @@ DATASET_MAPPING = {
         "output_type": "classification",
         "n_tasks": 1,
     },
-    "muv": {"loader": dc.molnet.load_muv, "output_type": "classification", "n_tasks": 17},
-    "pcba": {"loader": dc.molnet.load_pcba, "output_type": "classification", "n_tasks": 128},
+    "muv": {
+        "loader": dc.molnet.load_muv,
+        "output_type": "classification",
+        "n_tasks": 17
+    },
+    "pcba": {
+        "loader": dc.molnet.load_pcba,
+        "output_type": "classification",
+        "n_tasks": 128
+    },
     "qm9": {
         "output_type": "regression",
         "loader": dc.molnet.load_qm9,
@@ -84,7 +88,9 @@ MODEL_MAPPING = {
     "graphconv": GraphConvModel,
     "weave": WeaveModel,
     "chemberta": load_chemberta,
+    "GroverPretrain": GroverModel,
 }
+
 
 class BenchmarkingDatasetLoader:
     """A utility class for helping to load datasets for benchmarking.
@@ -101,8 +107,13 @@ class BenchmarkingDatasetLoader:
         return list(self.dataset_mapping.keys())
 
     def load_dataset(
-        self, dataset_name: str, featurizer: dc.feat.Featurizer, data_dir: Optional[str] = None, **kwargs
-    ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...], List[dc.trans.Transformer], str]:
+        self,
+        dataset_name: str,
+        featurizer: dc.feat.Featurizer,
+        data_dir: Optional[str] = None,
+        **kwargs
+    ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...],
+               List[dc.trans.Transformer], str]:
         """Load a dataset.
 
         Parameters
@@ -126,14 +137,15 @@ class BenchmarkingDatasetLoader:
             Type of output (e.g. "classification" or "regression").
         """
         if dataset_name not in self.dataset_mapping:
-            raise ValueError(f"Dataset {dataset_name} not found in dataset mapping.")
+            raise ValueError(
+                f"Dataset {dataset_name} not found in dataset mapping.")
 
         dataset_loader = self.dataset_mapping[dataset_name]["loader"]
         output_type = self.dataset_mapping[dataset_name]["output_type"]
         n_tasks = self.dataset_mapping[dataset_name]["n_tasks"]
-        tasks, datasets, transformers = dataset_loader(
-            featurizer=featurizer, splitter=None, data_dir=data_dir
-        )
+        tasks, datasets, transformers = dataset_loader(featurizer=featurizer,
+                                                       splitter=None,
+                                                       data_dir=data_dir)
         return tasks, datasets, transformers, output_type, n_tasks
 
 
@@ -143,9 +155,7 @@ class BenchmarkingModelLoader:
     This class is used to load models for benchmarking. It is used to load relevant pre-trained models
     """
 
-    def __init__(
-        self, loss: dc.models.losses.Loss
-    ) -> None:
+    def __init__(self, loss: dc.models.losses.Loss) -> None:
         """Initialize a BenchmarkingModelLoader.
 
         Parameters
@@ -161,7 +171,7 @@ class BenchmarkingModelLoader:
         model_name: str,
         checkpoint_path: Optional[str] = None,
         from_hf_checkpoint=False,
-        model_loading_kwargs: Dict = {},
+        model_parameters: Dict = {},
         task: str = 'regression',
         tokenizer_path: Optional[str] = None,
     ) -> Union[dc.models.torch_models.modular.ModularTorchModel,
@@ -174,8 +184,8 @@ class BenchmarkingModelLoader:
             Name of the model to load. Should be a key in `self.model_mapping`.
         checkpoint_path: str, optional (default None)
             Path to checkpoint to load. If None, will not load a checkpoint and will return a new model.
-        model_loading_kwargs: Dict, optional (default {})
-            Keyword arguments to pass to the model loader.
+        model_parameters: Dict, optional (default {})
+            Parameters for the model 
         task: str, (default regression)
             The specific training task configuration for the model.
         from_hf_checkpoint: bool, (default False)
@@ -192,14 +202,9 @@ class BenchmarkingModelLoader:
             raise ValueError(f"Model {model_name} not found in model mapping.")
         model_loader = self.model_mapping[model_name]
         if model_name == 'chemberta':
-            # We skip here metrics because pretraining model does not have matrics integrated.
             model = model_loader(task=task, tokenizer_path=tokenizer_path)
         else:
-            model = model_loader(
-                checkpoint_path=checkpoint_path,
-                task = task,
-                **model_loading_kwargs,
-            )
+            model = model_loader(**model_parameters)
         if checkpoint_path is not None:
             if model_name == 'chemberta':
                 # a special case for chemberta model - chemberta model can also be loaded from
@@ -214,8 +219,10 @@ class BenchmarkingModelLoader:
 
 
 def get_infograph_loading_kwargs(dataset):
-    num_feat = max([dataset.X[i].num_node_features for i in range(len(dataset))])
-    edge_dim = max([dataset.X[i].num_edge_features for i in range(len(dataset))])
+    num_feat = max(
+        [dataset.X[i].num_node_features for i in range(len(dataset))])
+    edge_dim = max(
+        [dataset.X[i].num_edge_features for i in range(len(dataset))])
     return {"num_feat": num_feat, "edge_dim": edge_dim}
 
 
@@ -285,24 +292,17 @@ def train(args):
     featurizer = featurizer_loader.load_featurizer(args.featurizer_name)
 
     tasks, datasets, transformers, output_type, n_tasks = dataset_loader.load_dataset(
-        args.dataset_name, featurizer, args.data_dir
-    )
+        args.dataset_name, featurizer, args.data_dir)
 
     unsplit_dataset = datasets[0]
     train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(
-        unsplit_dataset
-    )
+        unsplit_dataset)
 
-    metrics = (
-        [dc.metrics.Metric(dc.metrics.pearson_r2_score)]
-        if output_type == "regression"
-        else [dc.metrics.Metric(dc.metrics.roc_auc_score)]
-    )
-    loss = (
-        dc.models.losses.L2Loss()
-        if output_type == "regression"
-        else dc.models.losses.BinaryCrossEntropy()
-    )
+    metrics = ([dc.metrics.Metric(dc.metrics.pearson_r2_score)]
+               if output_type == "regression" else
+               [dc.metrics.Metric(dc.metrics.roc_auc_score)])
+    loss = (dc.models.losses.L2Loss() if output_type == "regression" else
+            dc.models.losses.BinaryCrossEntropy())
 
     model_loader = BenchmarkingModelLoader(loss=loss)
     model_loading_kwargs = {}
@@ -310,12 +310,10 @@ def train(args):
         model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
     elif args.model_name == "graphconv" or args.model_name == "weave":
         model_loading_kwargs = {'n_tasks': n_tasks, 'mode': output_type}
-    model = model_loader.load_model(
-        model_name=args.model_name,
-        checkpoint_path=args.checkpoint,
-        model_loading_kwargs = model_loading_kwargs,
-        task=args.task
-    )
+    model = model_loader.load_model(model_name=args.model_name,
+                                    checkpoint_path=args.checkpoint,
+                                    model_parameters=model_loading_kwargs,
+                                    task=args.task)
 
     early_stopper = EarlyStopper(patience=args.patience)
 
@@ -327,8 +325,8 @@ def train(args):
             eval_preds = model.predict(valid_dataset)
             eval_loss_fn = loss._create_pytorch_loss()
             eval_loss = torch.sum(
-                eval_loss_fn(torch.Tensor(eval_preds), torch.Tensor(valid_dataset.y))
-            ).item()
+                eval_loss_fn(torch.Tensor(eval_preds),
+                             torch.Tensor(valid_dataset.y))).item()
 
             eval_metrics = model.evaluate(
                 valid_dataset,
@@ -343,17 +341,21 @@ def train(args):
     # compute test metrics
     test_metrics = model.evaluate(test_dataset, metrics=metrics)
     test_metrics_df = pd.DataFrame.from_dict(
-        {k: np.array(v) for k, v in test_metrics.items()}, orient="index"
-    )
+        {k: np.array(v) for k, v in test_metrics.items()}, orient="index")
     print(f"Test metrics: {test_metrics_df}")
     test_metrics_df.to_csv(
         f"{args.output_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
     )
 
-def evaluate(seed: int, featurizer_name: str, dataset_name: str, 
-        model_name: str, checkpoint_path: str, 
-        task: Optional[str] = None, tokenizer_path: Optional[str] = None,
-        from_hf_checkpoint: Optional[bool] = None):
+
+def evaluate(seed: int,
+             featurizer_name: str,
+             dataset_name: str,
+             model_name: str,
+             checkpoint_path: str,
+             task: Optional[str] = None,
+             tokenizer_path: Optional[str] = None,
+             from_hf_checkpoint: Optional[bool] = None):
     """Evaluate method
 
     Evaluates the specified model on the specified dataset using the specified featurizer,
@@ -402,22 +404,38 @@ def evaluate(seed: int, featurizer_name: str, dataset_name: str,
         metrics = [dc.metrics.Metric(dc.metrics.accuracy_score)]
 
     model_loader = BenchmarkingModelLoader(metrics=metrics)
-    model_loading_kwargs = {}
     if args.model_name == "infograph":
         model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
 
-    model = model_loader.load_model(model_name=model_name, checkpoint_path=checkpoint, from_hf_checkpoint=from_hf_checkpoint, task=task, tokenizer_path=tokenizer_path)
+    model = model_loader.load_model(model_name=model_name,
+                                    checkpoint_path=checkpoint_path,
+                                    from_hf_checkpoint=from_hf_checkpoint,
+                                    task=task,
+                                    tokenizer_path=tokenizer_path)
 
     test_metrics = model.evaluate(test_dataset, metrics=metrics)
-    print (test_metrics)
+    print(test_metrics)
     return
+
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()
-    argparser.add_argument('--config', type=argparse.FileType('r'), help='config file path', default=None)
-    argparser.add_argument('--train', help='train a model', default=False, action='store_true')
-    argparser.add_argument('--evaluate', help='evaluate a model', default=False, action='store_true')
-    argparser.add_argument('--prepare_data', help='parse data', default=False, action='store_true')
+    argparser.add_argument('--config',
+                           type=argparse.FileType('r'),
+                           help='config file path',
+                           default=None)
+    argparser.add_argument('--train',
+                           help='train a model',
+                           default=False,
+                           action='store_true')
+    argparser.add_argument('--evaluate',
+                           help='evaluate a model',
+                           default=False,
+                           action='store_true')
+    argparser.add_argument('--prepare_data',
+                           help='parse data',
+                           default=False,
+                           action='store_true')
     argparser.add_argument("--model_name", type=str, default="infograph")
     argparser.add_argument("--task", type=str, default="regression")
     argparser.add_argument("--featurizer_name",
@@ -432,7 +450,8 @@ if __name__ == "__main__":
     argparser.add_argument("--data-dir", type=str, required=False, default=None)
     # NOTE There might be a better argument than job
     argparser.add_argument("--job", type=str, default="train")
-    argparser.add_argument("--from-hf-checkpoint", action=argparse.BooleanOptionalAction)
+    argparser.add_argument("--from-hf-checkpoint",
+                           action=argparse.BooleanOptionalAction)
     args = argparser.parse_args()
 
     if args.config:
@@ -441,12 +460,19 @@ if __name__ == "__main__":
         for key, value in config_dict.items():
             arg_dict[key] = value
 
+    # prepare model dir
     if args.prepare_data:
-        prepare_data(dataset_name=args.dataset_name, featurizer_name=args.featurizer_name, data_dir=args.data_dir)
+        prepare_data(dataset_name=args.dataset_name,
+                     featurizer_name=args.featurizer_name,
+                     data_dir=args.data_dir)
     if args.train:
         train(args)
     if args.evaluate:
-        evaluate(seed=args.seed, featurizer_name=args.featurizer_name, dataset_name=args.dataset_name,
-        model_name=args.model_name, checkpoint_path=args.checkpoint_path,
-        task=args.task, tokenizer_path=args.tokenizer_path,
-        from_hf_checkpoint=args.from_hf_checkpoint)
+        evaluate(seed=args.seed,
+                 featurizer_name=args.featurizer_name,
+                 dataset_name=args.dataset_name,
+                 model_name=args.model_name,
+                 checkpoint_path=args.checkpoint_path,
+                 task=args.task,
+                 tokenizer_path=args.tokenizer_path,
+                 from_hf_checkpoint=args.from_hf_checkpoint)
