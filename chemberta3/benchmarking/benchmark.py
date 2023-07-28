@@ -157,15 +157,9 @@ class BenchmarkingModelLoader:
     This class is used to load models for benchmarking. It is used to load relevant pre-trained models
     """
 
-    def __init__(self, loss: dc.models.losses.Loss) -> None:
+    def __init__(self) -> None:
         """Initialize a BenchmarkingModelLoader.
-
-        Parameters
-        ----------
-        loss: dc.models.losses.Loss
-            Loss function to use.
         """
-        self.loss = loss
         self.model_mapping = MODEL_MAPPING
 
     def load_model(
@@ -293,13 +287,8 @@ def train(args, data_dir: str):
     np.random.seed(args.seed)
     dataset = dc.data.DiskDataset(data_dir=data_dir)
 
-    metrics = ([dc.metrics.Metric(dc.metrics.pearson_r2_score)]
-               if output_type == "regression" else
-               [dc.metrics.Metric(dc.metrics.roc_auc_score)])
-    loss = (dc.models.losses.L2Loss() if output_type == "regression" else
-            dc.models.losses.BinaryCrossEntropy())
-
-    model_loader = BenchmarkingModelLoader(loss=loss)
+    # Load model
+    model_loader = BenchmarkingModelLoader()
     model_loading_kwargs = {}
     if args.model_name == "infograph":
         model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
@@ -311,6 +300,10 @@ def train(args, data_dir: str):
                                     task=args.task)
 
     early_stopper = EarlyStopper(patience=args.patience)
+
+    metrics = ([dc.metrics.Metric(dc.metrics.pearson_r2_score)]
+               if output_type == "regression" else
+               [dc.metrics.Metric(dc.metrics.roc_auc_score)])
 
     if isinstance(model, dc.models.SklearnModel):
         model.fit(train_dataset)
