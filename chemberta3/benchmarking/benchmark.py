@@ -1,3 +1,4 @@
+import os
 import yaml
 import argparse
 from dataclasses import dataclass
@@ -8,7 +9,8 @@ import pandas as pd
 import torch
 
 import deepchem as dc
-from deepchem.models import GraphConvModel, WeaveModel, GroverModel
+from deepchem.models import GraphConvModel, WeaveModel
+from deepchem.models.torch_models import GroverModel
 
 from custom_datasets import load_nek, load_zinc250k, prepare_data, FEATURIZER_MAPPING
 from model_loaders import load_infograph, load_chemberta, load_random_forest
@@ -460,11 +462,18 @@ if __name__ == "__main__":
         for key, value in config_dict.items():
             arg_dict[key] = value
 
-    # prepare model dir
     if args.prepare_data:
         prepare_data(dataset_name=args.dataset_name,
                      featurizer_name=args.featurizer_name,
                      data_dir=args.data_dir)
+
+    # FIXME All config's need not have model name, model parameters and others
+    base_exp_dir = 'runs'
+    model_parameters = config_dict['model_parameters']
+    leaf_dir = '-'.join([config_dict['model_name'], model_parameters['task'], str(model_parameters['hidden_size'])])
+    exp_dir = os.path.join(config_dict['experiment_name'], config_dict['dataset_name'], leaf_dir)
+    os.makedirs(exp_dir, exist_ok=True)
+
     if args.train:
         train(args)
     if args.evaluate:
