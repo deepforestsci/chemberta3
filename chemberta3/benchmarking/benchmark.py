@@ -11,9 +11,12 @@ import torch
 import deepchem as dc
 from deepchem.models import GraphConvModel, WeaveModel
 from deepchem.models.torch_models import GroverModel
+from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, GroverBondVocabularyBuilder
 
 from custom_datasets import load_nek, load_zinc250k, prepare_data, FEATURIZER_MAPPING
 from model_loaders import load_infograph, load_chemberta, load_random_forest
+
+import logging
 
 DATASET_MAPPING = {
     "bace_classification": {
@@ -90,7 +93,7 @@ MODEL_MAPPING = {
     "graphconv": GraphConvModel,
     "weave": WeaveModel,
     "chemberta": load_chemberta,
-    "GroverPretrain": GroverModel,
+    "GroverModel": GroverModel,
 }
 
 
@@ -197,6 +200,14 @@ class BenchmarkingModelLoader:
         if model_name not in self.model_mapping:
             raise ValueError(f"Model {model_name} not found in model mapping.")
         model_loader = self.model_mapping[model_name]
+
+        if model_name == 'GroverModel':
+            # replace atom_vocab and bond_vocab with vocab objects
+            model_parameters['atom_vocab'] = GroverAtomVocabularyBuilder.load(
+                model_parameters['atom_vocab'])
+            model_parameters['bond_vocab'] = GroverBondVocabularyBuilder.load(
+                model_parameters['bond_vocab'])
+
         if model_name == 'chemberta':
             model = model_loader(task=task, tokenizer_path=tokenizer_path)
         else:
@@ -270,7 +281,10 @@ class EarlyStopper:
         return False
 
 
-def train(args, data_dir: str):
+def train(args,
+          train_data_dir: str,
+          test_data_dir: Optional[str] = None,
+          valid_data_dir: Optional[str] = None):
     """Training loop
 
     Trains the specified model on the specified dataset using the specified featurizer,
@@ -280,29 +294,47 @@ def train(args, data_dir: str):
 
     Parameters
     ----------
-    data_dir: str
-        Data directory for loading dataset
+    train_data_dir: str
+        Data directory for loading training dataset
+    valid_data_dir: str
+        Data directiory of validation dataset
+    test_data_dir: str
+        Data directiory of test dataset
     """
+    logger = logging.getLogger(__name__)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    dataset = dc.data.DiskDataset(data_dir=data_dir)
+    train_dataset = dc.data.DiskDataset(data_dir=train_data_dir)
+    logger.info('Loaded training data set')
+
+    if valid_data_dir:
+        valid_dataset = dc.data.DiskDataset(data_dir=valid_data_dir)
+    else:
+        valid_dataset = None
+
+    if test_data_dir:
+        test_dataset = dc.data.DiskDataset(data_dir=test_data_dir)
+    else:
+        test_dataset = None
 
     # Load model
     model_loader = BenchmarkingModelLoader()
-    model_loading_kwargs = {}
+    model_parameters = {}
     if args.model_name == "infograph":
-        model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
+        model_parameters = get_infograph_loading_kwargs(train_dataset)
     elif args.model_name == "graphconv" or args.model_name == "weave":
-        model_loading_kwargs = {'n_tasks': n_tasks, 'mode': output_type}
+        model_parameters = {'n_tasks': n_tasks, 'mode': output_type}
+    else:
+        model_parameters = args.model_parameters
     model = model_loader.load_model(model_name=args.model_name,
                                     checkpoint_path=args.checkpoint,
-                                    model_parameters=model_loading_kwargs,
+                                    model_parameters=model_parameters,
                                     task=args.task)
 
     early_stopper = EarlyStopper(patience=args.patience)
 
     metrics = ([dc.metrics.Metric(dc.metrics.pearson_r2_score)]
-               if output_type == "regression" else
+               if args.task == "regression" else
                [dc.metrics.Metric(dc.metrics.roc_auc_score)])
 
     if isinstance(model, dc.models.SklearnModel):
@@ -310,30 +342,32 @@ def train(args, data_dir: str):
     else:
         for epoch in range(args.num_epochs):
             training_loss_value = model.fit(train_dataset, nb_epoch=1)
-            eval_preds = model.predict(valid_dataset)
-            eval_loss_fn = loss._create_pytorch_loss()
-            eval_loss = torch.sum(
-                eval_loss_fn(torch.Tensor(eval_preds),
-                             torch.Tensor(valid_dataset.y))).item()
+            if valid_dataset:
+                eval_preds = model.predict(valid_dataset)
+                eval_loss_fn = loss._create_pytorch_loss()
+                eval_loss = torch.sum(
+                    eval_loss_fn(torch.Tensor(eval_preds),
+                                 torch.Tensor(valid_dataset.y))).item()
 
-            eval_metrics = model.evaluate(
-                valid_dataset,
-                metrics=metrics,
-            )
-            print(
-                f"Epoch {epoch} training loss: {training_loss_value}; validation loss: {eval_loss}; validation metrics: {eval_metrics}"
-            )
-            if early_stopper(eval_loss, epoch):
-                break
+                eval_metrics = model.evaluate(
+                    valid_dataset,
+                    metrics=metrics,
+                )
+                print(
+                    f"Epoch {epoch} training loss: {training_loss_value}; validation loss: {eval_loss}; validation metrics: {eval_metrics}"
+                )
+                if early_stopper(eval_loss, epoch):
+                    break
 
-    # compute test metrics
-    test_metrics = model.evaluate(test_dataset, metrics=metrics)
-    test_metrics_df = pd.DataFrame.from_dict(
-        {k: np.array(v) for k, v in test_metrics.items()}, orient="index")
-    print(f"Test metrics: {test_metrics_df}")
-    test_metrics_df.to_csv(
-        f"{args.output_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
-    )
+    if test_dataset:
+        # compute test metrics
+        test_metrics = model.evaluate(test_dataset, metrics=metrics)
+        test_metrics_df = pd.DataFrame.from_dict(
+            {k: np.array(v) for k, v in test_metrics.items()}, orient="index")
+        print(f"Test metrics: {test_metrics_df}")
+        test_metrics_df.to_csv(
+            f"{args.output_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
+        )
 
 
 def evaluate(seed: int,
@@ -456,12 +490,20 @@ if __name__ == "__main__":
     # FIXME All config's need not have model name, model parameters and others
     base_exp_dir = 'runs'
     model_parameters = config_dict['model_parameters']
-    leaf_dir = '-'.join([config_dict['model_name'], model_parameters['task'], str(model_parameters['hidden_size'])])
-    exp_dir = os.path.join(config_dict['experiment_name'], config_dict['dataset_name'], leaf_dir)
+    leaf_dir = '-'.join([
+        config_dict['model_name'], model_parameters['task'],
+        str(model_parameters['hidden_size'])
+    ])
+    exp_dir = os.path.join(config_dict['experiment_name'],
+                           config_dict['dataset_name'], leaf_dir)
     os.makedirs(exp_dir, exist_ok=True)
+    model_parameters['model_dir'] = exp_dir
+    args.model_parameters = model_parameters
+    logging.basicConfig(filename=os.path.join(exp_dir, 'exp.log'),
+                        level=logging.INFO)
 
     if args.train:
-        train(args, data_dir=args.data_dir)
+        train(args, train_data_dir=args.train_data_dir)
     if args.evaluate:
         evaluate(seed=args.seed,
                  featurizer_name=args.featurizer_name,
