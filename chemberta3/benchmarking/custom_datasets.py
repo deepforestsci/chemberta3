@@ -18,6 +18,12 @@ FEATURIZER_MAPPING = {
     "grover":
         dc.feat.GroverFeaturizer(
             features_generator=dc.feat.CircularFingerprint()),
+    "molgraph":
+        dc.feat.MolGraphConvFeaturizer(use_edges=True),
+    "rdkit-conformer":
+        dc.feat.RDKitConformerFeaturizer(num_conformers=1),
+    "snap":
+        dc.feat.SNAPFeaturizer(),
 }
 
 
