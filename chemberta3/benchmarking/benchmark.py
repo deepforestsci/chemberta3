@@ -184,7 +184,7 @@ class BenchmarkingModelLoader:
         checkpoint_path: str, optional (default None)
             Path to checkpoint to load. If None, will not load a checkpoint and will return a new model.
         model_parameters: Dict, optional (default {})
-            Parameters for the model 
+            Parameters for the model, like number of hidden features
         task: str, (default regression)
             The specific training task configuration for the model.
         from_hf_checkpoint: bool, (default False)
@@ -488,25 +488,25 @@ if __name__ == "__main__":
         for key, value in config_dict.items():
             arg_dict[key] = value
 
+        # FIXME All config's need not have model name, model parameters and others
+        base_exp_dir = 'runs'
+        model_parameters = config_dict['model_parameters']
+        leaf_dir = '-'.join([
+            config_dict['model_name'], model_parameters['task'],
+            str(model_parameters['hidden_size'])
+        ])
+        exp_dir = os.path.join(config_dict['experiment_name'],
+                               config_dict['dataset_name'], leaf_dir)
+        os.makedirs(exp_dir, exist_ok=True)
+        model_parameters['model_dir'] = exp_dir
+        args.model_parameters = model_parameters
+        logging.basicConfig(filename=os.path.join(exp_dir, 'exp.log'),
+                            level=logging.INFO)
+
     if args.prepare_data:
         prepare_data(dataset_name=args.dataset_name,
                      featurizer_name=args.featurizer_name,
                      data_dir=args.data_dir)
-
-    # FIXME All config's need not have model name, model parameters and others
-    base_exp_dir = 'runs'
-    model_parameters = config_dict['model_parameters']
-    leaf_dir = '-'.join([
-        config_dict['model_name'], model_parameters['task'],
-        str(model_parameters['hidden_size'])
-    ])
-    exp_dir = os.path.join(config_dict['experiment_name'],
-                           config_dict['dataset_name'], leaf_dir)
-    os.makedirs(exp_dir, exist_ok=True)
-    model_parameters['model_dir'] = exp_dir
-    args.model_parameters = model_parameters
-    logging.basicConfig(filename=os.path.join(exp_dir, 'exp.log'),
-                        level=logging.INFO)
 
     if args.train:
         train(args, train_data_dir=args.train_data_dir)

@@ -30,3 +30,6 @@ python3 benchmark.py --model_name=graphconv --featurizer_name=convmol --dataset_
 ```
 python3 benchmark.py --prepare_data --dataset_name zinc5k --featurizer_name ecfp
 ```
+
+### Usage
+For each experiment, we create a config file (yml format) with the fields `experiment_name`, model name and required model parameters. Once a config file is set up, benchmarking could be run by invoking the script `python3 benchmark.py --config /path/to/config/file` and the model will be saved to model directory. The model directory will be a directory path created by combination of experiment name, dataset name and model name with model parameters. 
