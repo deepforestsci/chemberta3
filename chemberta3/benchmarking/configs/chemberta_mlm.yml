@@ -1,0 +1,12 @@
+experiment_name: 'pretrain'
+train: True
+
+model_name: 'chemberta'
+model_parameters:
+  task: 'mlm'
+  log_frequency: 50
+
+nb_epoch: 10
+checkpoint_interval: 50
+dataset_name: 'zinc5k'
+train_data_dir: 'data/zinc5k-featurized/dummy'
