@@ -10,11 +10,11 @@ import torch
 
 import deepchem as dc
 from deepchem.models import GraphConvModel, WeaveModel
-from deepchem.models.torch_models import GroverModel
+from deepchem.models.torch_models import GroverModel, Chemberta
 from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, GroverBondVocabularyBuilder
 
 from custom_datasets import load_nek, load_zinc250k, prepare_data, FEATURIZER_MAPPING
-from model_loaders import load_infograph, load_chemberta, load_random_forest
+from model_loaders import load_infograph, load_random_forest
 
 import logging
 
@@ -92,7 +92,7 @@ MODEL_MAPPING = {
     "random_forest": load_random_forest,
     "graphconv": GraphConvModel,
     "weave": WeaveModel,
-    "chemberta": load_chemberta,
+    "chemberta": Chemberta,
     "GroverModel": GroverModel,
 }
 
@@ -213,10 +213,7 @@ class BenchmarkingModelLoader:
             model_parameters['bond_vocab'] = GroverBondVocabularyBuilder.load(
                 model_parameters['bond_vocab'])
 
-        if model_name == 'chemberta':
-            model = model_loader(task=task, tokenizer_path=tokenizer_path)
-        else:
-            model = model_loader(**model_parameters)
+        model = model_loader(**model_parameters)
         if checkpoint_path is not None:
             if model_name == 'chemberta':
                 # a special case for chemberta model - chemberta model can also be loaded from
