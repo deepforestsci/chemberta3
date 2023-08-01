@@ -40,11 +40,6 @@ DATASET_MAPPING = {
         "tasks_wanted": ["CT_TOX"],
         "n_tasks": 2,
     },
-    "delaney": {
-        "loader": dc.molnet.load_delaney,
-        "output_type": "regression",
-        "n_tasks": 1,
-    },
     "hiv": {
         "loader": dc.molnet.load_hiv,
         "output_type": "classification",
@@ -364,7 +359,7 @@ if __name__ == "__main__":
                            default=False,
                            action='store_true')
     argparser.add_argument('--prepare_data',
-                           help='parse data',
+                           help='prepare data',
                            default=False,
                            action='store_true')
     argparser.add_argument("--model_name", type=str, default="infograph")
