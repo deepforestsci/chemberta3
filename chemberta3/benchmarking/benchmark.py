@@ -398,9 +398,7 @@ if __name__ == "__main__":
         base_exp_dir = 'runs'
         model_parameters = config_dict['model_parameters']
         leaf_dir = '-'.join([
-            config_dict['model_name'], model_parameters['task'],
-            str(model_parameters['hidden_size'])
-        ])
+            config_dict['model_name'], model_parameters['task']])
         exp_dir = os.path.join(config_dict['experiment_name'],
                                config_dict['dataset_name'], leaf_dir)
         os.makedirs(exp_dir, exist_ok=True)
