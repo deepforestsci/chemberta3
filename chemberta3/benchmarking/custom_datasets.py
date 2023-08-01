@@ -105,6 +105,12 @@ def load_zinc5k(featurizer_name, data_dir: Optional[str] = None) -> None:
         base_dir = data_dir
 
     data_dir = os.path.join(base_dir, featurizer_name)
+    if os.path.isdir(data_dir):
+        if not os.listdir(data_dir):
+            print(
+                "Data directory already exists. Data may already exist in data directory. Aborting featurization."
+            )
+            return
 
     # Ideally, we don't need logp here - we should pass empty tasks ([]) but it casues error during model.fit call
     loader = dc.data.CSVLoader(['logp'],
