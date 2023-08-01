@@ -196,6 +196,11 @@ class BenchmarkingModelLoader:
         -------
         model: dc.models.torch_models.modular.ModularTorchModel
             Loaded model.
+
+        Example
+        -------
+        >>> model_loader = BenchmarkingModelLoader()
+        >>> model = model_loader.load_model('GroverModel', model_parameters={'task': 'regression', 'node_fdim': 151, 'edge_fdim': 165})
         """
         if model_name not in self.model_mapping:
             raise ValueError(f"Model {model_name} not found in model mapping.")
@@ -226,6 +231,7 @@ class BenchmarkingModelLoader:
 
 
 def get_infograph_loading_kwargs(dataset):
+    """Get kwargs for loading Infograph model."""
     num_feat = max(
         [dataset.X[i].num_node_features for i in range(len(dataset))])
     edge_dim = max(
