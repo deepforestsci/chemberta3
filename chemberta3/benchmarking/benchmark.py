@@ -97,63 +97,6 @@ MODEL_MAPPING = {
 }
 
 
-class BenchmarkingDatasetLoader:
-    """A utility class for helping to load datasets for benchmarking.
-
-    This class is used to load datasets for benchmarking. It is used to load relevant MoleculeNet datasets
-    and other custom datasets (e.g. NEK datasets).
-    """
-
-    def __init__(self) -> None:
-        self.dataset_mapping = DATASET_MAPPING
-
-    @property
-    def dataset_names(self) -> List[str]:
-        return list(self.dataset_mapping.keys())
-
-    def load_dataset(
-        self,
-        dataset_name: str,
-        featurizer: dc.feat.Featurizer,
-        data_dir: Optional[str] = None,
-        **kwargs
-    ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...],
-               List[dc.trans.Transformer], str]:
-        """Load a dataset.
-
-        Parameters
-        ----------
-        dataset_name: str
-            Name of the dataset to load. Should be a key in `self.dataset_mapping`.
-        featurizer: dc.feat.Featurizer
-            Featurizer to use.
-        data_dir: str
-            Directory of dataset
-
-        Returns
-        -------
-        tasks: List[str]
-            List of tasks.
-        datasets: Tuple[Dataset, ...]
-            Tuple of train, valid, test datasets.
-        transformers: List[dc.trans.Transformer]
-            List of transformers.
-        output_type: str
-            Type of output (e.g. "classification" or "regression").
-        """
-        if dataset_name not in self.dataset_mapping:
-            raise ValueError(
-                f"Dataset {dataset_name} not found in dataset mapping.")
-
-        dataset_loader = self.dataset_mapping[dataset_name]["loader"]
-        output_type = self.dataset_mapping[dataset_name]["output_type"]
-        n_tasks = self.dataset_mapping[dataset_name]["n_tasks"]
-        tasks, datasets, transformers = dataset_loader(featurizer=featurizer,
-                                                       splitter=None,
-                                                       data_dir=data_dir)
-        return tasks, datasets, transformers, output_type, n_tasks
-
-
 class BenchmarkingModelLoader:
     """A utility class for helping to load models for benchmarking.
 
@@ -237,34 +180,6 @@ def get_infograph_loading_kwargs(dataset):
     edge_dim = max(
         [dataset.X[i].num_edge_features for i in range(len(dataset))])
     return {"num_feat": num_feat, "edge_dim": edge_dim}
-
-
-class BenchmarkingFeaturizerLoader:
-    """A utility class for helping to load featurizers for benchmarking."""
-
-    def __init__(self) -> None:
-        self.featurizer_mapping = FEATURIZER_MAPPING
-
-    def load_featurizer(self, featurizer_name: str) -> dc.feat.Featurizer:
-        """Load a featurizer.
-
-        Parameters
-        ----------
-        featurizer_name: str
-            Name of the featurizer to load. Should be a key in `self.featurizer_mapping`.
-
-        Returns
-        -------
-        featurizer: dc.feat.Featurizer
-            Loaded featurizer.
-        """
-        if featurizer_name not in self.featurizer_mapping:
-            raise ValueError(
-                f"Featurizer {featurizer_name} not found in featurizer mapping."
-            )
-
-        featurizer = self.featurizer_mapping[featurizer_name]
-        return featurizer
 
 
 @dataclass
@@ -378,6 +293,7 @@ def train(args,
 
 def evaluate(seed: int,
              featurizer_name: str,
+             test_data_dir: str,
              dataset_name: str,
              model_name: str,
              checkpoint_path: str,
@@ -395,8 +311,8 @@ def evaluate(seed: int,
         Manual seed for generating random numbers
     featurizer_name: str
         Featurizer name to featurize dataset
-    dataset_name: str
-        Dataset to evaluate the model
+    test_data_dir: str
+        Directory of test dataset for evaluating model
     model_name: str
         Name of the model to evaluate
     checkpoint_path: str
@@ -416,17 +332,7 @@ def evaluate(seed: int,
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    dataset_loader = BenchmarkingDatasetLoader()
-    featurizer_loader = BenchmarkingFeaturizerLoader()
-
-    splitter = dc.splits.ScaffoldSplitter()
-    featurizer = featurizer_loader.load_featurizer(featurizer_name)
-
-    tasks, datasets, transformers, output_type = dataset_loader.load_dataset(
-        dataset_name, featurizer)
-    unsplit_dataset = datasets[0]
-    train_dataset, valid_dataset, test_dataset = splitter.train_valid_test_split(
-        unsplit_dataset)
+    test_dataset = dc.data.DiskDataset(data_dir=test_data_dir)
 
     if task == 'mlm':
         metrics = [dc.metrics.Metric(dc.metrics.accuracy_score)]
