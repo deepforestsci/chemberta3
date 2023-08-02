@@ -264,7 +264,7 @@ def train(args,
                 print(
                     f"Epoch {epoch} training loss: {training_loss_value}; validation loss: {eval_loss}; validation metrics: {eval_metrics}"
                 )
-                if early_stopper(eval_loss, epoch):
+                if args.early_stopper and early_stopper(eval_loss, epoch):
                     break
 
     if test_dataset:
@@ -364,7 +364,9 @@ if __name__ == "__main__":
                            type=str,
                            default=None,
                            help='Directory to save model')
+    argparser.add_argument('--identifier', type=str, default=None, required=False, help='an identifier for the model')
     argparser.add_argument("--nb_epoch", type=int, default=50)
+    argparser.add_argument("--early-stopper", type=bool, default=True)
     argparser.add_argument("--patience", type=int, default=5)
     argparser.add_argument("--seed", type=int, default=123)
     argparser.add_argument("--data-dir", type=str, required=False, default=None)
@@ -397,7 +399,7 @@ if __name__ == "__main__":
         base_exp_dir = 'runs'
         model_parameters = config_dict['model_parameters']
         leaf_dir = '-'.join(
-            [config_dict['model_name'], model_parameters['task']])
+            [config_dict['model_name'], model_parameters['task']], config_dict['identifier'])
         exp_dir = os.path.join(config_dict['experiment_name'],
                                config_dict['dataset_name'], leaf_dir)
         os.makedirs(exp_dir, exist_ok=True)
