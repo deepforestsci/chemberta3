@@ -253,7 +253,7 @@ def train(args,
     if isinstance(model, dc.models.SklearnModel):
         model.fit(train_dataset)
     else:
-        for epoch in range(args.num_epochs):
+        for epoch in range(args.nb_epoch):
             training_loss_value = model.fit(train_dataset, nb_epoch=1)
             if valid_dataset:
                 eval_preds = model.predict(valid_dataset)
@@ -369,7 +369,7 @@ if __name__ == "__main__":
                            default="molgraphconv")
     argparser.add_argument("--dataset_name", type=str, default="nek")
     argparser.add_argument("--checkpoint", type=str, default=None)
-    argparser.add_argument("--num_epochs", type=int, default=50)
+    argparser.add_argument("--nb_epoch", type=int, default=50)
     argparser.add_argument("--patience", type=int, default=5)
     argparser.add_argument("--seed", type=int, default=123)
     argparser.add_argument("--output_dir", type=str, default=".")
