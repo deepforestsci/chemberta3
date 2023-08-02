@@ -18,12 +18,25 @@ FEATURIZER_MAPPING = {
     "grover":
         dc.feat.GroverFeaturizer(
             features_generator=dc.feat.CircularFingerprint()),
+    "rdkit-conformer":
+        dc.feat.RDKitConformerFeaturizer(num_conformers=1),
+    "snap":
+        dc.feat.SNAPFeaturizer(),
 }
 
 
 def prepare_data(dataset_name, featurizer_name, data_dir: Optional[str] = None):
+    if data_dir is None:
+        data_dir = os.path.join('data')
+    os.environ['DEEPCHEM_DATA_DIR'] = data_dir
+    featurizer = FEATURIZER_MAPPING[featurizer_name]
     if dataset_name == 'zinc5k':
-        load_zinc5k(featurizer_name, data_dir)
+        load_zinc5k(featurizer, data_dir)
+    elif dataset_name == 'delaney':
+        tasks, datasets, transformers = dc.molnet.load_delaney(
+            featurizer=featurizer,
+            data_dir=data_dir,
+            splitter=dc.splits.ScaffoldSplitter())
 
 
 def load_nek(
@@ -81,24 +94,29 @@ def load_nek(
 load_zinc250k = partial(dc.molnet.load_zinc15, dataset_size='250K')
 
 
-def load_zinc5k(featurizer_name, data_dir: Optional[str] = None) -> None:
+def load_zinc5k(featurizer, data_dir: Optional[str] = None) -> None:
     """Featurizes saves zinc5k dataset in `data_dir`
 
     Parameters
     ----------
-    featurizer_name: str
-        Name of featurizer
+    featurizer: dc.feat.Featurizer
+        Featurizer
     data_dir: Optional[str]
         Directory to store data
     """
     filepath = 'data/zinc5k.csv'
-    featurizer = FEATURIZER_MAPPING[featurizer_name]
     if data_dir is None:
         base_dir = os.path.join('data', 'zinc5k-featurized')
     else:
         base_dir = data_dir
 
     data_dir = os.path.join(base_dir, featurizer_name)
+    if os.path.isdir(data_dir):
+        if not os.listdir(data_dir):
+            print(
+                "Data directory already exists. Data may already exist in data directory. Aborting featurization."
+            )
+            return
 
     # Ideally, we don't need logp here - we should pass empty tasks ([]) but it casues error during model.fit call
     loader = dc.data.CSVLoader(['logp'],
