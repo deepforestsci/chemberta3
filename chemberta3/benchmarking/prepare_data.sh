@@ -10,5 +10,9 @@
 ## dataset used by snap model
 # python3 benchmark.py --prepare_data --dataset_name zinc5k --featurizer_name snap
 #
-# preparing delaney dataset for finetuning
-python3 benchmark.py --prepare_data --dataset_name delaney --featurizer_name dummy
+## preparing delaney dataset for finetuning
+# python3 benchmark.py --prepare_data --dataset_name delaney --featurizer_name dummy
+# python3 benchmark.py --prepare_data --dataset_name delaney --featurizer_name grover 
+# python3 benchmark.py --prepare_data --dataset_name delaney --featurizer_name molgraph 
+# python3 benchmark.py --prepare_data --dataset_name delaney --featurizer_name rdkit-conformer 
+# python3 benchmark.py --prepare_data --dataset_name delaney --featurizer_name snap 
