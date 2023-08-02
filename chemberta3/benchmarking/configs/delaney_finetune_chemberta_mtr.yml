@@ -1,0 +1,16 @@
+experiment_name: 'finetune'
+train: True
+
+model_name: 'chemberta'
+model_parameters:
+  task: 'regression'
+  log_frequency: 10
+
+pretrain_model_dir: 'pretrain/zinc5k/chemberta-mtr'
+
+nb_epoch: 1
+checkpoint_interval: 4 
+dataset_name: 'delaney'
+train_data_dir: 'data/delaney-featurized/DummyFeaturizer/ScaffoldSplitter/NormalizationTransformer_transform_y_True/train_dir'
+valid_data_dir: 'data/delaney-featurized/DummyFeaturizer/ScaffoldSplitter/NormalizationTransformer_transform_y_True/valid_dir'
+test_data_dir: 'data/delaney-featurized/DummyFeaturizer/ScaffoldSplitter/NormalizationTransformer_transform_y_True/test_dir'
