@@ -2,7 +2,7 @@ import os
 import yaml
 import argparse
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, Union, Optional
 
 import numpy as np
 import pandas as pd
@@ -13,7 +13,7 @@ from deepchem.models import GraphConvModel, WeaveModel
 from deepchem.models.torch_models import GroverModel, Chemberta
 from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, GroverBondVocabularyBuilder
 
-from custom_datasets import load_nek, load_zinc250k, prepare_data, FEATURIZER_MAPPING
+from custom_datasets import load_nek, load_zinc250k, prepare_data
 from model_loaders import load_infograph, load_random_forest
 
 import logging
@@ -153,7 +153,10 @@ class BenchmarkingModelLoader:
 
         model = model_loader(**model_parameters)
         if model_dir is not None:
-            model.restore(model_dir=model_dir)
+            try:
+                model.restore(model_dir=model_dir)
+            except ValueError as v:
+                logging.info(v)
 
         if pretrain_model_dir is not None:
             if model_name == 'chemberta':
@@ -161,20 +164,12 @@ class BenchmarkingModelLoader:
                 # huggingface checkpoint while other models (deepchem models) can only be loaded
                 # from deepchem checkpoint and hence, don't have the `from_hf_checkpoint` argument
                 model.load_from_pretrained(
-                    model_dir=model_dir,
+                    model_dir=pretrain_model_dir,
                     from_hf_checkpoint=from_hf_checkpoint)
+                logging.info('Loaded chemberta pretrained model')
             else:
                 model.load_from_pretrained(model_dir=pretrain_model_dir)
         return model
-
-
-def get_infograph_loading_kwargs(dataset):
-    """Get kwargs for loading Infograph model."""
-    num_feat = max(
-        [dataset.X[i].num_node_features for i in range(len(dataset))])
-    edge_dim = max(
-        [dataset.X[i].num_edge_features for i in range(len(dataset))])
-    return {"num_feat": num_feat, "edge_dim": edge_dim}
 
 
 @dataclass
@@ -236,22 +231,19 @@ def train(args,
     # Load model
     model_loader = BenchmarkingModelLoader()
     model_parameters = {}
-    if args.model_name == "infograph":
-        model_parameters = get_infograph_loading_kwargs(train_dataset)
-    elif args.model_name == "graphconv" or args.model_name == "weave":
-        model_parameters = {'n_tasks': n_tasks, 'mode': output_type}
-    else:
-        model_parameters = args.model_parameters
+    model_parameters = args.model_parameters
     model = model_loader.load_model(model_name=args.model_name,
-                                    model_dir=args.checkpoint,
+                                    model_dir=args.model_dir,
                                     pretrain_model_dir=args.pretrain_model_dir,
                                     model_parameters=model_parameters)
 
     early_stopper = EarlyStopper(patience=args.patience)
 
     metrics = ([dc.metrics.Metric(dc.metrics.pearson_r2_score)]
-               if args.task == "regression" else
+               if model_parameters['task'] == 'regression' else
                [dc.metrics.Metric(dc.metrics.roc_auc_score)])
+    loss = (dc.models.losses.L2Loss() if model_parameters['task']
+            == "regression" else dc.models.losses.BinaryCrossEntropy())
 
     if isinstance(model, dc.models.SklearnModel):
         model.fit(train_dataset)
@@ -282,7 +274,7 @@ def train(args,
             {k: np.array(v) for k, v in test_metrics.items()}, orient="index")
         print(f"Test metrics: {test_metrics_df}")
         test_metrics_df.to_csv(
-            f"{args.output_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
+            f"{args.model_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
         )
 
 
@@ -333,9 +325,6 @@ def evaluate(seed: int,
         metrics = [dc.metrics.Metric(dc.metrics.accuracy_score)]
 
     model_loader = BenchmarkingModelLoader(metrics=metrics)
-    if args.model_name == "infograph":
-        model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
-
     model = model_loader.load_model(model_name=model_name,
                                     model_dir=model_dir,
                                     from_hf_checkpoint=from_hf_checkpoint,
@@ -371,14 +360,29 @@ if __name__ == "__main__":
                            type=str,
                            default="molgraphconv")
     argparser.add_argument("--dataset_name", type=str, default="nek")
-    argparser.add_argument("--checkpoint", type=str, default=None)
+    argparser.add_argument("--model_dir",
+                           type=str,
+                           default=None,
+                           help='Directory to save model')
     argparser.add_argument("--nb_epoch", type=int, default=50)
     argparser.add_argument("--patience", type=int, default=5)
     argparser.add_argument("--seed", type=int, default=123)
-    argparser.add_argument("--output_dir", type=str, default=".")
     argparser.add_argument("--data-dir", type=str, required=False, default=None)
-    # NOTE There might be a better argument than job
-    argparser.add_argument("--job", type=str, default="train")
+    argparser.add_argument("--train-data-dir",
+                           type=str,
+                           required=False,
+                           default=None,
+                           help='train data directory')
+    argparser.add_argument("--test-data-dir",
+                           type=str,
+                           required=False,
+                           default=None,
+                           help='test data directory')
+    argparser.add_argument("--valid-data-dir",
+                           type=str,
+                           required=False,
+                           default=None,
+                           help='valid data directory')
     argparser.add_argument("--from-hf-checkpoint",
                            action=argparse.BooleanOptionalAction)
     args = argparser.parse_args()
@@ -392,12 +396,13 @@ if __name__ == "__main__":
         # FIXME All config's need not have model name, model parameters and others
         base_exp_dir = 'runs'
         model_parameters = config_dict['model_parameters']
-        leaf_dir = '-'.join([
-            config_dict['model_name'], model_parameters['task']])
+        leaf_dir = '-'.join(
+            [config_dict['model_name'], model_parameters['task']])
         exp_dir = os.path.join(config_dict['experiment_name'],
                                config_dict['dataset_name'], leaf_dir)
         os.makedirs(exp_dir, exist_ok=True)
         model_parameters['model_dir'] = exp_dir
+        arg_dict['model_dir'] = exp_dir
         args.model_parameters = model_parameters
         logging.basicConfig(filename=os.path.join(exp_dir, 'exp.log'),
                             level=logging.INFO)
@@ -408,7 +413,10 @@ if __name__ == "__main__":
                      data_dir=args.data_dir)
 
     if args.train:
-        train(args, train_data_dir=args.train_data_dir)
+        train(args,
+              train_data_dir=args.train_data_dir,
+              test_data_dir=args.test_data_dir,
+              valid_data_dir=args.valid_data_dir)
     if args.evaluate:
         evaluate(seed=args.seed,
                  featurizer_name=args.featurizer_name,
