@@ -106,10 +106,10 @@ class BenchmarkingModelLoader:
     def load_model(
         self,
         model_name: str,
-        checkpoint_path: Optional[str] = None,
+        model_dir: Optional[str] = None,
+        pretrain_model_dir: Optional[str] = None,
         from_hf_checkpoint=False,
         model_parameters: Dict = {},
-        task: str = 'regression',
         tokenizer_path: Optional[str] = None,
     ) -> Union[dc.models.torch_models.modular.ModularTorchModel,
                dc.models.torch_models.TorchModel]:
@@ -119,12 +119,12 @@ class BenchmarkingModelLoader:
         ----------
         model_name: str
             Name of the model to load. Should be a key in `self.model_mapping`.
-        checkpoint_path: str, optional (default None)
-            Path to checkpoint to load. If None, will not load a checkpoint and will return a new model.
+        model_dir: str, optional (default None)
+            Path to model for restore. If None, will not load a checkpoint and will return a new model.
+        pretrain_model_dir: str, optional (default None)
+            Path to model for loading pretrained model used during finetuning.
         model_parameters: Dict, optional (default {})
             Parameters for the model, like number of hidden features
-        task: str, (default regression)
-            The specific training task configuration for the model.
         from_hf_checkpoint: bool, (default False)
             Specify whether the checkpoint is a huggingface checkpoint
         tokenizer_path: str (None)
@@ -152,16 +152,19 @@ class BenchmarkingModelLoader:
                 model_parameters['bond_vocab'])
 
         model = model_loader(**model_parameters)
-        if checkpoint_path is not None:
+        if model_dir is not None:
+            model.restore(model_dir=model_dir)
+
+        if pretrain_model_dir is not None:
             if model_name == 'chemberta':
                 # a special case for chemberta model - chemberta model can also be loaded from
                 # huggingface checkpoint while other models (deepchem models) can only be loaded
                 # from deepchem checkpoint and hence, don't have the `from_hf_checkpoint` argument
                 model.load_from_pretrained(
-                    model_dir=checkpoint_path,
+                    model_dir=model_dir,
                     from_hf_checkpoint=from_hf_checkpoint)
             else:
-                model.load_pretrained_components(checkpoint=checkpoint_path)
+                model.load_from_pretrained(model_dir=pretrain_model_dir)
         return model
 
 
@@ -240,9 +243,9 @@ def train(args,
     else:
         model_parameters = args.model_parameters
     model = model_loader.load_model(model_name=args.model_name,
-                                    checkpoint_path=args.checkpoint,
-                                    model_parameters=model_parameters,
-                                    task=args.task)
+                                    model_dir=args.checkpoint,
+                                    pretrain_model_dir=args.pretrain_model_dir,
+                                    model_parameters=model_parameters)
 
     early_stopper = EarlyStopper(patience=args.patience)
 
@@ -288,7 +291,7 @@ def evaluate(seed: int,
              test_data_dir: str,
              dataset_name: str,
              model_name: str,
-             checkpoint_path: str,
+             model_dir: str,
              task: Optional[str] = None,
              tokenizer_path: Optional[str] = None,
              from_hf_checkpoint: Optional[bool] = None):
@@ -307,7 +310,7 @@ def evaluate(seed: int,
         Directory of test dataset for evaluating model
     model_name: str
         Name of the model to evaluate
-    checkpoint_path: str
+    model_dir: str
         Path to model checkpoint
     task: str, (optional, default None)
         The task defines the type of learning task in the huggingface model. The supported tasks are
@@ -334,7 +337,7 @@ def evaluate(seed: int,
         model_loading_kwargs = get_infograph_loading_kwargs(train_dataset)
 
     model = model_loader.load_model(model_name=model_name,
-                                    checkpoint_path=checkpoint_path,
+                                    model_dir=model_dir,
                                     from_hf_checkpoint=from_hf_checkpoint,
                                     task=task,
                                     tokenizer_path=tokenizer_path)
@@ -411,7 +414,7 @@ if __name__ == "__main__":
                  featurizer_name=args.featurizer_name,
                  dataset_name=args.dataset_name,
                  model_name=args.model_name,
-                 checkpoint_path=args.checkpoint_path,
+                 model_dir=args.model_dir,
                  task=args.task,
                  tokenizer_path=args.tokenizer_path,
                  from_hf_checkpoint=args.from_hf_checkpoint)
