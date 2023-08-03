@@ -33,3 +33,12 @@ python3 benchmark.py --prepare_data --dataset_name zinc5k --featurizer_name ecfp
 
 ### Usage
 For each experiment, we create a config file (yml format) with the fields `experiment_name`, model name and required model parameters. Once a config file is set up, benchmarking could be run by invoking the script `python3 benchmark.py --config /path/to/config/file` and the model will be saved to model directory. The model directory will be a directory path created by combination of experiment name, dataset name and model name with model parameters. 
+
+## Supported featurizers
+- CircularFingerprint (ecfp) - Circular fingerprint featurizer
+- DummyFeaturizer (dummy) - performs no featurization on the data 
+- GroverFeaturizer (grover) - performs featurization for grover model
+- MolGraphConvFeaturizer (molgraphconv) - performs Molecular Graph Convolution featurizer
+- RDKitConformer (rdkit-conformer) - performs rdkit conformer featurization for infomax3d model
+- SNAPFeaturizer (snap) - performs snap featurization on models
+- WeaveFeaturizer (weave) - performs featurization for weave models 
