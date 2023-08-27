@@ -8,18 +8,20 @@ import deepchem as dc
 from deepchem.models.torch_models import GroverModel
 from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, GroverBondVocabularyBuilder
 
+os.environ['DEEPCHEM_DATA_DIR'] = 'datadir'
+
 featurizer = dc.feat.DummyFeaturizer()
 task, datasets, transformers = dc.molnet.load_delaney(featurizer=featurizer)
 train, test, valid = datasets
 
-# av = GroverAtomVocabularyBuilder()
-# av.build(train)
-# av.save('av.json')
+av = GroverAtomVocabularyBuilder()
+av.build(train)
+av.save('av.json')
 av = GroverAtomVocabularyBuilder.load('av.json')
 
-# bv = GroverBondVocabularyBuilder()
-# bv.build(train)
-# bv.save('bv.json')
+bv = GroverBondVocabularyBuilder()
+bv.build(train)
+bv.save('bv.json')
 bv = GroverBondVocabularyBuilder.load('bv.json')
 
 featurizer = dc.feat.GroverFeaturizer(dc.feat.CircularFingerprint())

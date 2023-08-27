@@ -26,8 +26,9 @@ class LitModel(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.pt_model.parameters(), lr=1e-4)
-        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1)
-        return [optimizer], [lr_scheduler]
+        # lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1)
+        # return [optimizer], [lr_scheduler]
+        return [optimizer]
 
     def training_step(self, batch, batch_idx):
         inputs, labels, w = self.dc_model._prepare_batch(batch)
@@ -49,7 +50,7 @@ model = GroverModel(node_fdim=151,
                     features_dim=2048,
                     task='finetuning',
                     model_dir='gm-finetune',
-                    device=torch.device('mps'))
+                    device=torch.device('cpu'))
 
 
 dataset = train.make_pytorch_dataset(batch_size=32)
@@ -57,5 +58,5 @@ dataloader = torch.utils.data.DataLoader(dataset, collate_fn=collate_fn)
 
 csv_logger = CSVLogger("log_dir", name="grover", flush_logs_every_n_steps=1)
 lit_model = LitModel(model)
-trainer = pl.Trainer(max_epochs=100, accelerator='mps', logger=csv_logger)
+trainer = pl.Trainer(max_epochs=100, accelerator='cpu', logger=csv_logger)
 trainer.fit(lit_model, train_dataloaders=dataloader)
