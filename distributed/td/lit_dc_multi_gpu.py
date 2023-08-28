@@ -59,6 +59,6 @@ dataloader = torch.utils.data.DataLoader(dataset, collate_fn=collate_fn)
 
 csv_logger = CSVLogger("log_dir", name="grover", flush_logs_every_n_steps=1)
 lit_model = LitModel(model)
-trainer = pl.Trainer(max_epochs=100, accelerator='gpu', logger=csv_logger, devices=2,
+trainer = pl.Trainer(max_epochs=5, accelerator='gpu', logger=csv_logger, devices=2,
         strategy='ddp_find_unused_parameters_true')
 trainer.fit(lit_model, train_dataloaders=dataloader)
