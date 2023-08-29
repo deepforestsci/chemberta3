@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import time
 import numpy as np
@@ -176,4 +177,4 @@ if __name__ == '__main__':
         world_size = 1
         backend = 'gloo'
 
-    mp.spawn(main, args=(world_size, 1, 5, 64), nprocs=world_size)
+    mp.spawn(main, args=(world_size, 1, 10, 32), nprocs=world_size)
