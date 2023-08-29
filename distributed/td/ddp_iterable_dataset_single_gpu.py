@@ -1,6 +1,7 @@
 import os
 import time
 import numpy as np
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -28,6 +29,9 @@ class TorchDiskDataset(torch.utils.data.IterableDataset):
         self.deterministic = deterministic
         self.batch_size = batch_size
 
+    def __len__(self):
+        return len(self.disk_dataset)
+
     def __iter__(self):
         # Each time an iterator is created i.e when we call enumerate(dataloader),
         # num_worker number of worker processes get created.
@@ -45,8 +49,8 @@ class TorchDiskDataset(torch.utils.data.IterableDataset):
             num_processes *= dist.get_world_size()
 
 
-       first_shard = process_id * n_shards // num_processes
-       last_shard = (process_id + 1) * n_shards // num_processes
+        first_shard = process_id * n_shards // num_processes
+        last_shard = (process_id + 1) * n_shards // num_processes
 
         if first_shard == last_shard:
             return
@@ -100,7 +104,7 @@ class Trainer:
         print(
             f"[GPU{self.device}] Epoch {epoch} | Batchsize: {b_sz} | Steps: {len(self.train_data)}"
         )
-        self.train_data.sampler.set_epoch(epoch)
+        # self.train_data.sampler.set_epoch(epoch)
         for i, batch in enumerate(self.train_data):
             self._run_batch(i, batch)
 
@@ -133,16 +137,15 @@ def load_train_objs():
                         functional_group_size=85,
                         mode='regression',
                         features_dim=2048,
-                        task='finetuning',
-                        device=torch.device('cpu'))
+                        task='finetuning')
     optimizer = torch.optim.Adam(model.model.parameters(), lr=1e-4)
 
     return train_set, model, optimizer
 
 
 def collate_fn(batch):
-    x, y, w = map(list, list(zip(*batch)))
-    return [[x], [np.vstack(y)], [np.vstack(w)]]
+    x, y, w, ids = batch[0][0], batch[0][1], batch[0][2], batch[0][3]
+    return [[x], [y], [w]]
 
 
 def prepare_dataloader(dataset, batch_size):
