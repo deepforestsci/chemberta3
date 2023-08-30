@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 import time
 import torch
@@ -27,4 +28,4 @@ model = GroverModel(node_fdim=151,
                     model_dir='gm-finetune',
                     device=torch.device('cpu'))
 
-model.fit(train, nb_epoch=100)
+model.fit(train, nb_epoch=10)

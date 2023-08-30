@@ -1,1 +1,0 @@
-python3 grover_delaney_plain.py
