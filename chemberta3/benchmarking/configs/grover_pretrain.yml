@@ -1,0 +1,25 @@
+experiment_name: 'pretrain'
+train: True
+
+model_name: 'GroverModel'
+model_parameters:
+  task: 'pretraining'
+  node_fdim: 151
+  edge_fdim: 165
+  atom_vocab: 'data/zinc5k-featurized/grover_vocab/atom_vocab.json'
+  bond_vocab: 'data/zinc5k-featurized/grover_vocab/bond_vocab.json'
+  features_dim: 2048
+  hidden_size: 128
+  functional_group_size: 85 
+  device: 'cpu'
+  batch_size: 100
+  log_frequency: 10
+
+nb_epoch: 10
+checkpoint_interval: 50
+dataset_name: 'zinc5k'
+train_data_dir: 'data/zinc5k-featurized/grover'
+
+optimizer: 'Adam'
+optimizer_params:
+  lr: 1.0e-3

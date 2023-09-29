@@ -1,0 +1,30 @@
+model: deepchem.models.torch_models.InfoGraphModel
+  description: 'infograph model pretraining'
+  epochs: 20
+  batch_size: 100
+  embedding_dim: 15
+  num_gc_layers: 5
+  prior: True
+  gamma: .1
+  measure: JSD
+  average_loss: True 
+
+model: deepchem.models.torch_models.GNNModular
+  description: 'gnn modular training'
+  epochs: 10
+  batch_size: 100
+  gnn_type: 'gin'
+  num_layer: 3
+  emb_dim: 64
+  num_tasks: 1
+  num_classes: 2
+  graph_pooling: 'mean'
+  dropout: 0
+  jump_knowledge: 'last'
+  task: 'edge_pred'
+  mask_rate: .1
+  mask_edge: True
+  context_size: 1
+  neighborhood_size: 3
+  context_mode: 'cbow'
+  neg_samples: 1

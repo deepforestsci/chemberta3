@@ -1,0 +1,4 @@
+dataset_name: delaney
+model_name: random_forest
+featurizer_name: ecfp
+train: True

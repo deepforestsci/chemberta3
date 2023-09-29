@@ -6,4 +6,5 @@ dgl-cu111
 torch
 torchvision
 torchaudio
+# for custom_datasets.load_nek
 s3fs
