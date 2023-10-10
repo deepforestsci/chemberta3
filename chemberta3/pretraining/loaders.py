@@ -93,7 +93,10 @@ class PretrainingDatasetLoader(ABC):
                     X = Parallel(n_jobs=os.cpu_count() if parallel else 1, verbose=10)(
                         delayed(self.featurizer.featurize)(s) for s in smiles_chunk
                     )
-                    X_arr = np.array([x[0] for x in X if x.size])
+                    try:
+                        X_arr = np.array([x[0] for x in X if x.size])
+                    except AttributeError:
+                        X_arr = np.array([x for x in X])
                     new_total = total_samples_loaded + X_arr.shape[0]
                     if new_total > max_num_samples:
                         X_arr = X_arr[: max_num_samples - total_samples_loaded]

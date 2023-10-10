@@ -6,7 +6,7 @@ from ray.tune import CLIReporter
 
 from chemberta3.pretraining.loaders import ZincLoader
 from deepchem.feat import MolGraphConvFeaturizer
-from deepchem.models.torch_models import InfoGraphModel
+from deepchem.models.torch_models.infograph import InfoGraphModel
 from deepchem.splits import RandomSplitter
 
 
@@ -65,7 +65,7 @@ def train(args):
             "gpu": 1 if torch.cuda.is_available() else 0,
         },
         config=config,
-        num_samples=args.num_samples,
+        num_samples=args.num_trials,
         progress_reporter=reporter,
     )
     best_trial = result.get_best_trial("loss", "min", "last")

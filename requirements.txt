@@ -6,5 +6,8 @@ dgl-cu111
 torch
 torchvision
 torchaudio
+deepchem
+deepchem[torch]
 # for custom_datasets.load_nek
 s3fs
+deepchem
