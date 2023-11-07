@@ -1,5 +1,6 @@
 import os
 import pickle
+import argparse
 import deepchem as dc
 from deepchem.data import DiskDataset
 from typing import List, Tuple, Optional
@@ -15,22 +16,21 @@ import logging
 
 FEATURIZER_MAPPING = {
     "molgraphconv":
-        dc.feat.MolGraphConvFeaturizer(use_edges=True),
+    dc.feat.MolGraphConvFeaturizer(use_edges=True),
     "ecfp":
-        dc.feat.CircularFingerprint(),
+    dc.feat.CircularFingerprint(),
     "convmol":
-        dc.feat.ConvMolFeaturizer(),
+    dc.feat.ConvMolFeaturizer(),
     "weave":
-        dc.feat.WeaveFeaturizer(max_pair_distance=2),
+    dc.feat.WeaveFeaturizer(max_pair_distance=2),
     "dummy":
-        dc.feat.DummyFeaturizer(),
+    dc.feat.DummyFeaturizer(),
     "grover":
-        dc.feat.GroverFeaturizer(
-            features_generator=dc.feat.CircularFingerprint()),
+    dc.feat.GroverFeaturizer(features_generator=dc.feat.CircularFingerprint()),
     "rdkit-conformer":
-        dc.feat.RDKitConformerFeaturizer(),
+    dc.feat.RDKitConformerFeaturizer(),
     "snap":
-        dc.feat.SNAPFeaturizer(),
+    dc.feat.SNAPFeaturizer(),
 }
 
 DATASET_MAPPING = {
@@ -49,6 +49,13 @@ DATASET_MAPPING = {
     'zinc250k': partial(dc.molnet.load_zinc15, dataset_size='250K'),
     'zinc1m': partial(dc.molnet.load_zinc15, dataset_size='1M'),
     'zinc10m': partial(dc.molnet.load_zinc15, dataset_size='10M'),
+    'chembl': partial(dc.molnet.load_chembl, set='sparse'),
+    "nek": {
+        "loader": load_nek,
+        "output_type": "regression",
+        "tasks_wanted": ["NEK2_ki_avg_value"],
+        "n_tasks": 1,
+    },
 }
 
 
@@ -206,6 +213,7 @@ def multicpu_featurization(csv_path: str, featurizer_name: str, nproc: int,
     _merge_disk_dataset_by_move(data_dirs, merge_dir)
     shutil.rmtree(base_dir)
 
+
 def prepare_data(dataset_name,
                  featurizer_name,
                  data_dir: Optional[str] = None,
@@ -235,7 +243,7 @@ def prepare_data(dataset_name,
     >>> prepare_data('delaney', 'dummy', data_dir='data')
     """
     if data_dir is None:
-        data_dir = os.path.join('data')
+        data_dir = os.path.join('/data')
     os.environ['DEEPCHEM_DATA_DIR'] = data_dir
     if is_multicpu_feat:
         base_dir = os.path.join(
@@ -258,11 +266,6 @@ def prepare_data(dataset_name,
             tasks, datasets, transformers = loader(featurizer=featurizer,
                                                    data_dir=data_dir,
                                                    splitter=splitter)
-
-        transformer_path = os.path.join(data_dir, dataset_name, featurizer_name)
-        os.makedirs(transformer_path, exist_ok=True)
-        with open(os.path.join(transformer_path, 'transformer.pckl'), 'wb') as f:
-            pickle.dump(transformers, f)
 
         if featurizer_name == 'grover':
             # build grover vocabulary for grover featurizer
@@ -413,3 +416,44 @@ def prepare_vocab(dataset_name, data_dir, split_dataset):
     bv.build(dataset)
     bv.save(bond_vocab_path)
     return
+
+
+if __name__ == '__main__':
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument('--prepare_data',
+                           help='prepare data',
+                           default=False,
+                           action='store_true')
+    argparser.add_argument('--multicpu_feat',
+                           default=False,
+                           action='store_true',
+                           help='enable multicpu featurization')
+    argparser.add_argument('--csv_path',
+                           help='path to csv file for multi-cpu featurization',
+                           default=None,
+                           type=str)
+    argparser.add_argument('--ncpu',
+                           help='Number of CPUs to use for featurization',
+                           default=None,
+                           type=int)
+    argparser.add_argument('--ttv_split',
+                           help='Train test validation split of dataset',
+                           default=False,
+                           action='store_true')
+    args = argparser.parse_args()
+
+    split_dataset = args.ttv_split
+    if args.multicpu_feat:
+        if args.csv_path is None:
+            raise ValueError(
+                'Path to csv file for performing featurization is required')
+        if args.ncpu is None:
+            # -1 to leave out a cpu for the master process - the benchmark.py script
+            args.ncpu = os.cpu_count() - 1
+    prepare_data(dataset_name=args.dataset_name,
+                 featurizer_name=args.featurizer_name,
+                 data_dir=args.data_dir,
+                 split_dataset=split_dataset,
+                 is_multicpu_feat=args.multicpu_feat,
+                 csv_path=args.csv_path,
+                 ncpu=args.ncpu)
