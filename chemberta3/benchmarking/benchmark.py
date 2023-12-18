@@ -1,8 +1,10 @@
 import os
+import gc
 import yaml
 import argparse
+import pickle
 from dataclasses import dataclass
-from typing import Dict, List, Tuple, Union, Optional
+from typing import Dict, Union, Optional
 
 import numpy as np
 import pandas as pd
@@ -11,90 +13,27 @@ import torch
 import deepchem as dc
 from deepchem.models import GraphConvModel, WeaveModel
 from deepchem.models.torch_models import GroverModel, Chemberta, InfoGraphModel, GNNModular, InfoGraphStarModel
-from deepchem.models.torch_models import HuggingFaceModel, ModularTorchModel
+from deepchem.models.torch_models import HuggingFaceModel, ModularTorchModel, InfoMax3DModular
 from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, GroverBondVocabularyBuilder
+from deepchem.metrics import to_one_hot
 
-from custom_datasets import load_nek, load_zinc250k, prepare_data, FEATURIZER_MAPPING
-from model_loaders import load_infograph, load_random_forest
+from model_loaders import load_random_forest
 
 import logging
 
-DATASET_MAPPING = {
-    "bace_classification": {
-        "loader": dc.molnet.load_bace_classification,
-        "output_type": "classification",
-        "n_tasks": 1,
-    },
-    "bace_regression": {
-        "loader": dc.molnet.load_bace_regression,
-        "output_type": "regression",
-        "n_tasks": 1,
-    },
-    "bbbp": {
-        "loader": dc.molnet.load_bbbp,
-        "output_type": "classification",
-        "n_tasks": 1,
-    },
-    "clintox": {
-        "loader": dc.molnet.load_clintox,
-        "output_type": "classification",
-        "tasks_wanted": ["CT_TOX"],
-        "n_tasks": 2,
-    },
-    "delaney": {
-        "loader": dc.molnet.load_delaney,
-        "output_type": "regression",
-        "n_tasks": 1,
-    },
-    "hiv": {
-        "loader": dc.molnet.load_hiv,
-        "output_type": "classification",
-        "n_tasks": 1,
-    },
-    "muv": {
-        "loader": dc.molnet.load_muv,
-        "output_type": "classification",
-        "n_tasks": 17
-    },
-    "pcba": {
-        "loader": dc.molnet.load_pcba,
-        "output_type": "classification",
-        "n_tasks": 128
-    },
-    "qm9": {
-        "output_type": "regression",
-        "loader": dc.molnet.load_qm9,
-        "n_tasks": 12,
-    },
-    "tox21": {
-        "loader": dc.molnet.load_tox21,
-        "output_type": "classification",
-        # TODO How to use `tasks_wanted` argument?
-        "tasks_wanted": ["SR-p53"],
-        # `tasks_wanted` will only be used if we are creating dataset from csv but here we are using
-        # molnet loader and therefore n_tasks will be the number of tasks returned from molnet loader
-        "n_tasks": 12,
-    },
-    "nek": {
-        "loader": load_nek,
-        "output_type": "regression",
-        "tasks_wanted": ["NEK2_ki_avg_value"],
-        "n_tasks": 1,
-    },
-    "zinc250k": {
-        "loader": load_zinc250k,
-        "output_type": "regression",
-        "tasks_wanted": ["logp"],
-    }
-}
+torch.manual_seed(1234)
+np.random.seed(1234)
 
 MODEL_MAPPING = {
-    "infograph": load_infograph,
+    "infograph": InfoGraphModel,
+    'infographstar': InfoGraphStarModel,
     "random_forest": load_random_forest,
     "graphconv": GraphConvModel,
     "weave": WeaveModel,
     "chemberta": Chemberta,
     "GroverModel": GroverModel,
+    "snap": GNNModular,
+    'infomax3d': InfoMax3DModular,
 }
 
 
@@ -306,7 +245,8 @@ class EarlyStopper:
 def train(args,
           train_data_dir: str,
           test_data_dir: Optional[str] = None,
-          valid_data_dir: Optional[str] = None):
+          valid_data_dir: Optional[str] = None,
+          restore_from_checkpoint: Optional[bool] = None):
     """Training loop
 
     Trains the specified model on the specified dataset using the specified featurizer,
@@ -322,14 +262,15 @@ def train(args,
         Data directiory of validation dataset
     test_data_dir: str
         Data directiory of test dataset
+    restore_from_checkpoint: bool
+        Restore training from a checkpoint
     """
-    logger = logging.getLogger(__name__)
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
-    train_dataset = dc.data.DiskDataset(data_dir=train_data_dir)
-    train_dataset._memory_cache_size = 0
+    torch.cuda.empty_cache()
+    gc.collect()
+    logger = logging.getLogger('train_log')
+    # train_dataset = dc.data.DiskDataset(data_dir=train_data_dir)
+    # train_dataset._memory_cache_size = 0
     logger.info('Loaded training data set')
-
 
     if valid_data_dir:
         valid_dataset = dc.data.DiskDataset(data_dir=valid_data_dir)
@@ -430,12 +371,10 @@ def evaluate(seed: int,
 
     Parameters
     ----------
-    seed: int
-        Manual seed for generating random numbers
     featurizer_name: str
         Featurizer name to featurize dataset
-    dataset_name: str
-        Dataset to evaluate the model
+    test_data_dir: str
+        Directory of test dataset for evaluating model
     model_name: str
         Name of the model to evaluate
     model_dir: str
@@ -515,6 +454,10 @@ if __name__ == "__main__":
     argparser.add_argument("--job", type=str, default="train")
     argparser.add_argument("--from-hf-checkpoint",
                            action=argparse.BooleanOptionalAction)
+    argparser.add_argument("--restore-from-checkpoint",
+                           action=argparse.BooleanOptionalAction,
+                           help="resume training from checkpoint",
+                           default=False)
     args = argparser.parse_args()
 
     if args.config:
