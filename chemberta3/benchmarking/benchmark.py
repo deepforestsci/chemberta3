@@ -299,60 +299,82 @@ def train(args,
     early_stopper = EarlyStopper(patience=args.patience)
 
     # see: https://github.com/deepchem/deepchem/issues/3508 for multiple comparisons
+    if 'mode' not in model_parameters.keys():
+        model_parameters['mode'] = model_parameters['task']
+    if 'task' not in model_parameters.keys():
+        model_parameters['task'] = model_parameters['mode']
     if model_parameters['task'] == 'regression' or model_parameters[
             'mode'] == 'regression':
         classification = False
     elif model_parameters['task'] == 'classification' or model_parameters[
             'mode'] == 'classification':
         classification = True
-    if not args.pretrain:
-        transformers_path = os.path.join('data', args.dataset_name, args.featurizer_name, 'transformer.pckl')
-        with open(transformers_path, 'rb') as f:
-            transformers = pickle.load(f)
-        if not classification:
-            metrics = [dc.metrics.Metric(dc.metrics.rms_score)]
-            loss = dc.models.losses.L2Loss()
-        elif classification:
-            metrics = [dc.metrics.Metric(dc.metrics.roc_auc_score)]
-            loss = dc.models.losses.SoftmaxCrossEntropy()
-            # see https://github.com/deepchem/deepchem/issues/3522 for multiple comparisons
-            if 'num_classes' in model_parameters.keys():
-                n_classes = model_parameters['num_classes']
-            elif 'n_classes' in model_parameters.keys():
-                n_classes = model_parameters['n_classes']
 
+    transformers_path = os.path.join('data', args.dataset_name,
+                                     args.featurizer_name, 'transformer.pckl')
+    with open(transformers_path, 'rb') as f:
+        transformers = pickle.load(f)
+    if not classification:
+        metrics = [dc.metrics.Metric(dc.metrics.rms_score)]
+        loss = dc.models.losses.L2Loss()
+    elif classification:
+        metrics = [dc.metrics.Metric(dc.metrics.roc_auc_score)]
+        loss = dc.models.losses.SoftmaxCrossEntropy()
+        # see https://github.com/deepchem/deepchem/issues/3522 for multiple comparisons
+        if 'num_classes' in model_parameters.keys():
+            n_classes = model_parameters['num_classes']
+        elif 'n_classes' in model_parameters.keys():
+            n_classes = model_parameters['n_classes']
+
+    all_losses = []
     if isinstance(model, dc.models.SklearnModel):
         model.fit(train_dataset)
     else:
         for epoch in range(args.nb_epoch):
-            training_loss_value = model.fit(train_dataset, nb_epoch=1)
-            if valid_dataset:
-                eval_preds = model.predict(valid_dataset)
-                eval_loss_fn = loss._create_pytorch_loss()
-                eval_loss = torch.sum(
-                    eval_loss_fn(torch.Tensor(eval_preds),
-                                 torch.Tensor(valid_dataset.y))).item()
+            logger.info('Starting epoch %d' % epoch)
+            losses = []
+            training_loss_value = model.fit(train_dataset,
+                                            nb_epoch=1,
+                                            all_losses=losses)
+            all_losses.extend(losses)
 
-                with torch.no_grad():
-                    eval_metrics = model.evaluate(
-                        valid_dataset,
-                        metrics=metrics,
-                        transformers=transformers
-                    )
-                logger.info(
-                    f"Epoch {epoch} training loss: {training_loss_value}; validation loss: {eval_loss}; validation metrics: {eval_metrics}"
-                )
-                if early_stopper(eval_loss, epoch):
-                    break
+            # TODO Log train-ROC-AUC and compare it with valid ROC-AUC
+            with torch.no_grad():
+                eval_preds = model.predict(valid_dataset)
+
+            eval_loss_fn = loss._create_pytorch_loss()
+            if classification:
+                y = to_one_hot(valid_dataset.y.flatten(), n_classes)
+            else:
+                y = valid_dataset.y
+            eval_loss = torch.mean(
+                eval_loss_fn(torch.Tensor(eval_preds.squeeze()),
+                             torch.Tensor(y))).item()
+
+            with torch.no_grad():
+                eval_metrics = model.evaluate(valid_dataset,
+                                              metrics=metrics,
+                                              transformers=transformers)
+            logger.info(
+                f"Epoch {epoch} training loss: {training_loss_value}; validation loss: {eval_loss}; validation metrics: {eval_metrics}"
+            )
+            if args.early_stopper and early_stopper(eval_loss, epoch):
+                break
+    logger.info('Completed training')
+
+    with open(f'{args.model_dir}/losses.pickle', 'wb') as f:
+        pickle.dump(all_losses, f)
 
     if test_dataset:
         # compute test metrics
-        test_metrics = model.evaluate(test_dataset, metrics=metrics)
+        with torch.no_grad():
+            test_metrics = model.evaluate(test_dataset, metrics=metrics)
         test_metrics_df = pd.DataFrame.from_dict(
-            {k: np.array(v) for k, v in test_metrics.items()}, orient="index")
-        print(f"Test metrics: {test_metrics_df}")
+            {k: np.array(v)
+             for k, v in test_metrics.items()}, orient="index")
+        logger.info(f"Test metrics: {test_metrics_df}")
         test_metrics_df.to_csv(
-            f"{args.output_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
+            f"{args.model_dir}/{args.model_name}_{args.dataset_name}_test_metrics.csv",
         )
 
 
@@ -554,20 +576,35 @@ if __name__ == "__main__":
         exp_dir = os.path.join(config_dict['experiment_name'],
                                config_dict['dataset_name'], leaf_dir)
         os.makedirs(exp_dir, exist_ok=True)
+        model_parameters = config_dict['model_parameters']
         model_parameters['model_dir'] = exp_dir
         args.model_parameters = model_parameters
         logging.basicConfig(filename=os.path.join(exp_dir, 'exp.log'),
-                            level=logging.INFO)
+                            level=logging.INFO,
+                            format='%(asctime)s %(levelname)s %(message)s',
+                            datefmt='%Y-%m-%d %H:%M')
 
-    if args.train or args.pretrain or args.finetune:
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s',
+                                      datefmt='%Y-%m-%d %H:%M')
+        train_logger = logging.getLogger('train_log')
+        train_logger_handler = logging.FileHandler(
+            os.path.join(exp_dir, 'train.log'))
+        train_logger_handler.setFormatter(formatter)
+        train_logger.addHandler(train_logger_handler)
+        train_logger.setLevel(logging.INFO)
+
+    if args.train or args.finetune:
         train(args,
               train_data_dir=args.train_data_dir,
               test_data_dir=args.test_data_dir,
               valid_data_dir=args.valid_data_dir,
               restore_from_checkpoint=args.restore_from_checkpoint)
+    elif args.pretrain:
+        pretrain(args,
+                 train_data_dir=args.train_data_dir,
+                 restore_from_checkpoint=args.restore_from_checkpoint)
     if args.evaluate:
-        evaluate(seed=args.seed,
-                 featurizer_name=args.featurizer_name,
+        evaluate(featurizer_name=args.featurizer_name,
                  dataset_name=args.dataset_name,
                  model_name=args.model_name,
                  model_dir=args.model_dir,
