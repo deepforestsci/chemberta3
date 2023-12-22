@@ -103,97 +103,6 @@ def process_learning_rate(args):
         return tasks, datasets, transformers, output_type, n_tasks
 
 
-class BenchmarkingModelLoader:
-    """A utility class for helping to load models for benchmarking.
-
-    This class is used to load models for benchmarking. It is used to load relevant pre-trained models
-    """
-
-    def __init__(self) -> None:
-        """Initialize a BenchmarkingModelLoader.
-        """
-        self.model_mapping = MODEL_MAPPING
-
-    def load_model(
-        self,
-        model_name: str,
-        model_dir: Optional[str] = None,
-        pretrain_model_dir: Optional[str] = None,
-        from_hf_checkpoint=False,
-        model_parameters: Dict = {},
-        tokenizer_path: Optional[str] = None,
-    ) -> Union[dc.models.torch_models.modular.ModularTorchModel,
-               dc.models.torch_models.TorchModel]:
-        """Load a model.
-
-        Parameters
-        ----------
-        model_name: str
-            Name of the model to load. Should be a key in `self.model_mapping`.
-        model_dir: str, optional (default None)
-            Path to model for restore. If None, will not load a checkpoint and will return a new model.
-        pretrain_model_dir: str, optional (default None)
-            Path to model for loading pretrained model used during finetuning.
-        model_parameters: Dict, optional (default {})
-            Parameters for the model, like number of hidden features
-        from_hf_checkpoint: bool, (default False)
-            Specify whether the checkpoint is a huggingface checkpoint
-        tokenizer_path: str (None)
-            Path to huggingface tokenizer. This option is used only for models from HuggingFace ecosystem, like chemberta and not other models.
-
-        Returns
-        -------
-        model: dc.models.torch_models.modular.ModularTorchModel
-            Loaded model.
-
-        Example
-        -------
-        >>> model_loader = BenchmarkingModelLoader()
-        >>> model = model_loader.load_model('GroverModel', model_parameters={'task': 'regression', 'node_fdim': 151, 'edge_fdim': 165})
-        """
-        if model_name not in self.model_mapping:
-            raise ValueError(f"Model {model_name} not found in model mapping.")
-        model_loader = self.model_mapping[model_name]
-
-        if model_name == 'GroverModel':
-            # replace atom_vocab and bond_vocab with vocab objects
-            if args.pretrain:
-                model_parameters[
-                    'atom_vocab'] = GroverAtomVocabularyBuilder.load(
-                        model_parameters['atom_vocab'])
-                model_parameters[
-                    'bond_vocab'] = GroverBondVocabularyBuilder.load(
-                        model_parameters['bond_vocab'])
-            elif pretrain_model_dir is not None:
-                args.pretrain_model_parameters[
-                    'atom_vocab'] = GroverAtomVocabularyBuilder.load(
-                        args.pretrain_model_parameters['atom_vocab'])
-                args.pretrain_model_parameters[
-                    'bond_vocab'] = GroverBondVocabularyBuilder.load(
-                        args.pretrain_model_parameters['bond_vocab'])
-
-        model = model_loader(**model_parameters)
-        if model_dir is not None:
-            model.restore(model_dir=model_dir)
-
-        if pretrain_model_dir is not None:
-            if isinstance(model, HuggingFaceModel):
-                model.load_from_pretrained(
-                    model_dir=model_dir,
-                    from_hf_checkpoint=from_hf_checkpoint)
-            elif isinstance(model, ModularTorchModel):
-                pretrained_model = self.model_mapping[
-                    args.pretrain_modular_model_name](
-                        **args.pretrain_model_parameters)
-                pretrained_model.restore(model_dir=args.pretrain_model_dir)
-
-                # restore finetune model components
-                model.load_from_pretrained(
-                    pretrained_model,
-                    components=args.pretrain_model_components)
-        return model
-
-
 def get_infograph_loading_kwargs(dataset):
     """Get kwargs for loading Infograph model."""
     num_feat = max(
@@ -372,19 +281,6 @@ def train(args,
         test_dataset = None
 
     # Load model
-    model_loader = BenchmarkingModelLoader()
-    model_parameters = {}
-    if args.model_name == "infograph":
-        model_parameters = get_infograph_loading_kwargs(train_dataset)
-    elif args.model_name == "graphconv" or args.model_name == "weave":
-        model_parameters = {'n_tasks': n_tasks, 'mode': output_type}
-    else:
-        model_parameters = args.model_parameters
-    model = model_loader.load_model(model_name=args.model_name,
-                                    model_dir=args.checkpoint,
-                                    pretrain_model_dir=args.pretrain_model_dir,
-                                    model_parameters=model_parameters)
-
     model = load_model(args=args,
                        model_name=args.model_name,
                        model_dir=args.model_dir,
