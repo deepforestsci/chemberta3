@@ -37,12 +37,6 @@ MODEL_MAPPING = {
 }
 
 
-class BenchmarkingDatasetLoader:
-    """A utility class for helping to load datasets for benchmarking.
-
-    This class is used to load datasets for benchmarking. It is used to load relevant MoleculeNet datasets
-    and other custom datasets (e.g. NEK datasets).
-    """
 def process_learning_rate(args):
     if args.lr_scheduler:
         if args.lr_scheduler == 'ExponentialDecay':
@@ -52,55 +46,6 @@ def process_learning_rate(args):
     else:
         return args.learning_rate
 
-
-    def __init__(self) -> None:
-        self.dataset_mapping = DATASET_MAPPING
-
-    @property
-    def dataset_names(self) -> List[str]:
-        return list(self.dataset_mapping.keys())
-
-    def load_dataset(
-        self,
-        dataset_name: str,
-        featurizer: dc.feat.Featurizer,
-        data_dir: Optional[str] = None,
-        **kwargs
-    ) -> Tuple[List[str], Tuple[dc.data.Dataset, ...],
-               List[dc.trans.Transformer], str]:
-        """Load a dataset.
-
-        Parameters
-        ----------
-        dataset_name: str
-            Name of the dataset to load. Should be a key in `self.dataset_mapping`.
-        featurizer: dc.feat.Featurizer
-            Featurizer to use.
-        data_dir: str
-            Directory of dataset
-
-        Returns
-        -------
-        tasks: List[str]
-            List of tasks.
-        datasets: Tuple[Dataset, ...]
-            Tuple of train, valid, test datasets.
-        transformers: List[dc.trans.Transformer]
-            List of transformers.
-        output_type: str
-            Type of output (e.g. "classification" or "regression").
-        """
-        if dataset_name not in self.dataset_mapping:
-            raise ValueError(
-                f"Dataset {dataset_name} not found in dataset mapping.")
-
-        dataset_loader = self.dataset_mapping[dataset_name]["loader"]
-        output_type = self.dataset_mapping[dataset_name]["output_type"]
-        n_tasks = self.dataset_mapping[dataset_name]["n_tasks"]
-        tasks, datasets, transformers = dataset_loader(featurizer=featurizer,
-                                                       splitter=None,
-                                                       data_dir=data_dir)
-        return tasks, datasets, transformers, output_type, n_tasks
 
 
 def get_infograph_loading_kwargs(dataset):
