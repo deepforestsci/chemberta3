@@ -5,8 +5,10 @@ variable "chemberta_key_pair" {
 }
 
 variable "ubuntu_2204_ami" {
-  description = "ubuntu 22.04 ami id for deep learning"
-  default = "ami-0d8efac6374295c8a"
+  # description = "ubuntu 22.04 ami id for deep learning"
+  # default = "ami-0d8efac6374295c8a"
+  description = "ubuntu 20.04 plain"
+  default = "ami-07b36ea9852e986ad"
   type = string
 }
 
