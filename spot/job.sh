@@ -11,9 +11,8 @@ sudo -u ubuntu bash -c "pip3 install boto3 botocore"
 aws s3 cp s3://chemberta3/make_ten.py /home/ubuntu/make_ten.py
 sudo -u ubuntu bash -c "python3 /home/ubuntu/make_ten.py"
 
-
-# Cleanup spot fleet request
-# AWS_REGION=us-east-2
-# INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-# SPOT_FLEET_REQUEST_ID=$(aws ec2 describe-spot-instance-requests --region $AWS_REGION --filter "Name=instance-id,Values='$INSTANCE_ID'" --query "SpotInstanceRequests[].Tags[?Key=='aws:ec2spot:fleet-request-id'].Value[]" --output text)
-# aws ec2 delete-fleets --region $AWS_REGION --spot-fleet-request-ids $SPOT_FLEET_REQUEST_ID --terminate-instances
+# TODO Update this to query region from metadata
+AWS_REGION=us-east-2
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+FLEET_ID=$(aws ec2 describe-instances --instance-id $INSTANCE_ID --query "Reservations[*].Instances[*].Tags[?Key=='aws:ec2:fleet-id'].Value[]" --output text)
+aws ec2 delete-fleets ---region $AWS_REGION --fleet-id $FLEET_ID --terminate-instances
