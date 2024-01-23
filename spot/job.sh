@@ -12,9 +12,9 @@ sudo apt -y install python3-pip
 sudo -u ubuntu bash -c "pip3 install boto3 botocore"
 sudo -u ubuntu bash -c "pip3 install torch --index-url https://download.pytorch.org/whl/cpu"
 sudo -u ubuntu bash -c "pip3 install --pre deepchem"
-sudo -u ubuntu bash -c "pip3 install ray[default]"
 sudo -u ubuntu bash -c "pip3 install  dgl -f https://data.dgl.ai/wheels/repo.html"
-sudo -u ubuntu bash -c "pip3 install dgllife"
+sudo -u ubuntu bash -c "pip3 install ray[default,train]"
+sudo -u ubuntu bash -c "pip3 install dgllife torch_geometric"
 
 # gather data, training script and execute
 # copy training script
@@ -27,4 +27,4 @@ sudo -u ubuntu bash -c "python3 /home/ubuntu/train.py"
 AWS_REGION=us-east-2
 INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
 FLEET_ID=$(aws ec2 describe-instances --instance-id $INSTANCE_ID --query "Reservations[*].Instances[*].Tags[?Key=='aws:ec2:fleet-id'].Value[]" --output text)
-aws ec2 delete-fleets ---region $AWS_REGION --fleet-id $FLEET_ID --terminate-instances
+aws ec2 delete-fleets --region $AWS_REGION --fleet-id $FLEET_ID --terminate-instances

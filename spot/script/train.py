@@ -57,9 +57,6 @@ def train_func(config):
             train.report(metrics=metrics_report,
                          checkpoint=Checkpoint.from_directory(ckpt_dir))
 
-        if epoch == 1:
-            raise RuntimeError("Interrupting to demonstrate checkpointing")
-
 
 if __name__ == '__main__':
     ckpt_config = CheckpointConfig(checkpoint_score_attribute='loss',

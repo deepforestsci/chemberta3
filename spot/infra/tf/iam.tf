@@ -17,6 +17,8 @@ EOF
 
 resource "aws_iam_role_policy_attachment" "dc_spot_instance_s3_access" {
   role = aws_iam_role.dc_spot_instance_role.id
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  for_each = toset(["arn:aws:iam::aws:policy/AmazonS3FullAccess",
+										"arn:aws:iam::aws:policy/AmazonEC2FullAccess",
+                    ])
+  policy_arn = each.value
 }
-
