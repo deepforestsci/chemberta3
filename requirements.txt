@@ -2,3 +2,11 @@ numpy~=1.24.2
 pandas~=1.2.3
 # for custom_datasets.load_nek
 s3fs
+dgl
+torch-geometric
+dgllife
+transformers
+tokenizers
+# select backend for torch (cuda, rocm)
+--extra-index-url https://download.pytorch.org/whl/cpu 
+torch
