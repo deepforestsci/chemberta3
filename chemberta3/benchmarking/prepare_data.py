@@ -421,6 +421,9 @@ def prepare_vocab(dataset_name, data_dir, split_dataset):
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
+    argparser.add_argument("--dataset_name", type=str)
+    argparser.add_argument("--featurizer_name",
+                           type=str)
     argparser.add_argument('--multicpu_feat',
                            default=False,
                            action='store_true',
@@ -437,6 +440,10 @@ if __name__ == '__main__':
                            help='Train test validation split of dataset',
                            default=False,
                            action='store_true')
+    argparser.add_argument('--data_dir',
+                           help='data dir to store data',
+                           default=None,
+                           type=str)
     args = argparser.parse_args()
 
     split_dataset = args.ttv_split
