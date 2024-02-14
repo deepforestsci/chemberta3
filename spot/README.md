@@ -9,3 +9,8 @@ A EC2 fleet request specifying the type of instance to use and the bid price is 
 If instance gets terminated (happens when spot price is higher than our bid price), the EC2 Fleet Request issues request for new instance. When a new instance is allocated (happens when spot price goes lower than our bid price), training and code artifacts are once again downloaded from S3 and training resumes from the checkpoint.
 
 Once the training is completed, the fleet request is automatically deleted.
+
+## AWS Resources
+- [Spot Instance Advisor](https://aws.amazon.com/ec2/spot/instance-advisor/) for finding frequency of interruption of spot instances.
+- [Spot Pricing](https://aws.amazon.com/ec2/spot/pricing/) for getting spot instance pricing.
+- [EC2 Pricing](https://aws.amazon.com/ec2/pricing/on-demand/) for finding pricing of on-demand instances.
