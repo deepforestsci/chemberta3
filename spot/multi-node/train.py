@@ -3,8 +3,9 @@ import tempfile
 import os
 import deepchem as dc
 import ray
+import numpy as np
 from ray import train
-from ray.train import Checkpoint, ScalingConfig
+from ray_ds import RayDataset
 import ray.train.torch
 from ray.train.torch import TorchTrainer
 from ray.train import Checkpoint, CheckpointConfig, RunConfig, ScalingConfig
@@ -16,7 +17,7 @@ if __name__ == '__main__':
     train_dataset = RayDataset.read(dataset_path).dataset
 
     def train_loop_per_worker(config):
-        dc_model = dc.models.InfoGraphModel(num_features=30,
+        dc_model = dc.models.torch_models.InfoGraphModel(num_features=30,
                                             embedding_dim=11,
                                             num_gc_layers=3,
                                             task='pretraining',
@@ -28,8 +29,7 @@ if __name__ == '__main__':
         optimizer = dc_model._pytorch_optimizer
 
         train_data_shard = train.get_dataset_shard("train")
-        train_dataloader = train_data_shard.iter_torch_batches(
-            batch_size=batch_size, dtypes=torch.float32)
+        train_dataloader = train_data_shard.iter_batches(batch_size=batch_size)
 
         checkpoint = train.get_checkpoint()
         if checkpoint:
@@ -46,17 +46,17 @@ if __name__ == '__main__':
             start_epoch = config["num_epochs"]
 
         for epoch in range(start_epoch):
+            losses = []
             for batch in train_dataloader:
-                optimizer.zero_grad()
-                inputs, labels, weights = batch['x'], batch['y'], batch[
-                    'weights']
-                inputs, labels, weights = dc_model._prepare_batch(
-                    ([inputs], [labels], [weights]))
+                inputs, labels, weights = dc_model._prepare_batch(([batch['x']], None,
+                                                          None))
                 loss = dc_model.loss_func(inputs, labels, weights)
                 loss.backward()
+                optimizer.zero_grad()
                 optimizer.step()
+                losses.append(loss.detach().cpu().item())
 
-            metrics = {"loss": loss, "epoch": epoch}
+            metrics = {"loss": np.mean(losses), "epoch": epoch}
 
             with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
                 data = {
@@ -72,9 +72,6 @@ if __name__ == '__main__':
                 if ray.train.get_context().get_world_rank() == 0:
                     print(metrics)
 
-    # Step 3: Create a TorchTrainer. Specify the number of training workers and
-    # pass in your Ray Dataset.
-    # The Ray Dataset is automatically split across all training workers.
     train_loop_config = {"num_epochs": 20}
     run_config = RunConfig(checkpoint_config=CheckpointConfig(num_to_keep=1))
     trainer = TorchTrainer(train_loop_per_worker=train_loop_per_worker,
@@ -84,6 +81,3 @@ if __name__ == '__main__':
                                                         use_gpu=use_gpu),
                            run_config=run_config)
     result = trainer.fit()
-
-# TODO
-# Setup a GPU Cluser but before that train on a multi-node CPU cluster.
