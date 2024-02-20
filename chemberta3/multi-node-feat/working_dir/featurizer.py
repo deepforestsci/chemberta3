@@ -25,6 +25,7 @@ FEATURIZER_MAPPING = {
         dc.feat.RDKitConformerFeaturizer(),
     "snap":
         dc.feat.SNAPFeaturizer(),
+    "rdkit-descriptor": dc.feat.RDKitDescriptors(),
 }
 
 
@@ -88,12 +89,17 @@ class RayDataset(dc.data.Dataset):
         self.dataset = dataset
         self.x_column, self.y_column = x_column, y_column
 
-    def featurize(self, featurizer: dc.feat.Featurizer, column):
+    def featurize(self, featurizer: Union[str, dc.feat.Featurizer], column):
 
         class RayFeaturizer:
 
             def __init__(self, featurizer, column):
                 import deepchem as dc
+                if featurizer == 'rdkit-descriptor':
+                    # A special case for handling rdkit descriptor featurizer
+                    # See: https://github.com/rdkit/rdkit/issues/6776,
+                    # https://github.com/deepchem/deepchem/issues/3593
+                    featurizer = dc.feat.RDKitDescriptors()
                 self.featurizer = featurizer
                 self.column = column
 
@@ -150,7 +156,7 @@ def test_is_empty_path(path):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
     count = bucket.objects.filter(Prefix=folder_name)
-    assert len(list(count)) == 0, 'Result path is not empty'
+    assert len(list(count)) == 0, f'Result path is not empty {path}'
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
@@ -159,9 +165,13 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     csv_path, result_path = get_paths_from_args(args)
+    print (result_path)
     test_is_empty_path(result_path)
     print('csv path is ', csv_path)
-    featurizer = FEATURIZER_MAPPING[args.featurizer]
+    if args.featurizer != 'rdkit-descriptor':
+        featurizer = FEATURIZER_MAPPING[args.featurizer]
+    else:
+        featurizer = args.featurizer
 
     # from pyarrow import csv as arrow_csv
     ds = ray.data.read_csv(csv_path, parallelism=100).repartition(10_000)
