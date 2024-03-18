@@ -1,0 +1,62 @@
+cluster_name: dc-ray
+
+provider:
+    type: aws
+    region: us-east-2
+    availability_zone: us-east-2a,us-east-2c,us-east-2b 
+    # comment below line to stop instance instead of termination
+    cache_stopped_nodes: False
+
+max_workers: 8
+
+available_node_types:
+    ray_head_default:
+        resources: {"CPU": 4, "GPU": 1}
+        node_config:
+            InstanceType: g4dn.xlarge
+            ImageId: ami-0049f8d04dcd032ce 
+            IamInstanceProfile:
+                Arn: "arn:aws:iam::979726621414:instance-profile/dc_ray_head_node_profile"
+            BlockDeviceMappings:
+              - DeviceName: /dev/sda1
+                Ebs:
+                    VolumeSize: 150
+    single_gpu_instance:
+        resources: {"CPU": 4, "GPU": 1}
+        node_config:
+            InstanceType: g4dn.xlarge
+            ImageId: ami-0049f8d04dcd032ce 
+            IamInstanceProfile:
+                Arn: "arn:aws:iam::979726621414:instance-profile/DcSpotInstanceProfile20240222102159801000000002"
+            InstanceMarketOptions:
+                MarketType: spot
+                SpotOptions:
+                    MaxPrice: "0.25"
+        max_workers: 4
+    two_gpu_instance:
+        resources: {"CPU": 32, "GPU": 2}
+        node_config:
+            InstanceType: g3.8xlarge
+            # The below is a custom AMI id for deep learning containing deechem, torch with cuda 12.1, ray installed for instance with multiple nodes.
+            ImageId: ami-0049f8d04dcd032ce 
+            IamInstanceProfile:
+                Arn: "arn:aws:iam::979726621414:instance-profile/DcSpotInstanceProfile20240222102159801000000002"
+            # To query spot price: aws ec2 describe-spot-price-history --instance-types g3.8xlarge --availability-zone us-east-2a --product-description "Linux/UNIX"
+            InstanceMarketOptions:
+                MarketType: spot
+                SpotOptions:
+                    MaxPrice: "1"
+        max_workers: 4
+
+head_node_type: ray_head_default
+
+setup_commands:
+  - conda activate pytorch
+
+head_start_ray_commands:
+  - conda activate pytorch && ray stop
+  - conda activate pytorch && ulimit -n 65536; ray start --head --port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host=0.0.0.0
+
+worker_start_ray_commands:
+  - conda activate pytorch && ray stop
+  - conda activate pytorch && ulimit -n 65536; ray start --address=$RAY_HEAD_IP:6379 --object-manager-port=8076
