@@ -1,6 +1,7 @@
 import os
 import gc
 import yaml
+import shutil
 import argparse
 import pickle
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from deepchem.models.torch_models import HuggingFaceModel, ModularTorchModel, In
 from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, GroverBondVocabularyBuilder
 from deepchem.metrics import to_one_hot
 
+from ray.job_submission import JobSubmissionClient
 from ray_utils import train_ray
 from model_loaders import load_random_forest
 
@@ -502,16 +504,22 @@ if __name__ == "__main__":
                 test_data_dir=args.test_data_dir,
                 valid_data_dir=args.valid_data_dir,
                 restore_from_checkpoint=args.restore_from_checkpoint)
-        else:
-            train_ray(args,
-                      train_data_dir=args.train_data_dir,
-                      num_workers=args.num_workers,
-                      exp_name=args.exp_name,
-                      storage_path=args.storage_path)
     elif args.pretrain:
-        pretrain(args,
-                 train_data_dir=args.train_data_dir,
-                 restore_from_checkpoint=args.restore_from_checkpoint)
+        if not args.use_ray:
+            pretrain(args,
+                     train_data_dir=args.train_data_dir,
+                     restore_from_checkpoint=args.restore_from_checkpoint)
+        elif args.use_ray:
+            # NOTE: Make sure that ray cluster is up and port forwarded to the local machine
+            # at 127.0.0.1:8265
+            # copy config file to working_dir and submit a ray job
+            shutil.copy(args.config.name, 'working_dir/config.yml')
+            client = JobSubmissionClient("http://127.0.0.1:8265")
+            job_id = client.submit_job(
+                entrypoint="python pretrain.py",
+                runtime_env={"working_dir": "working_dir"}
+            )
+            print(job_id)
     if args.evaluate:
         evaluate(featurizer_name=args.featurizer_name,
                  dataset_name=args.dataset_name,
