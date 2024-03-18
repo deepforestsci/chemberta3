@@ -19,7 +19,6 @@ from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, Grove
 from deepchem.metrics import to_one_hot
 
 from ray.job_submission import JobSubmissionClient
-from ray_utils import train_ray
 from model_loaders import load_random_forest
 
 import logging
@@ -516,7 +515,7 @@ if __name__ == "__main__":
             shutil.copy(args.config.name, 'working_dir/config.yml')
             client = JobSubmissionClient("http://127.0.0.1:8265")
             job_id = client.submit_job(
-                entrypoint="python pretrain.py",
+                entrypoint="python3 main.py",
                 runtime_env={"working_dir": "working_dir"}
             )
             print(job_id)
