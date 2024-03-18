@@ -34,8 +34,8 @@ class RayDcDatasource(FileBasedDatasource):
         paths: Union[str, List[str]]
             Path to dataset
         numpy_load_args: Optional[Dict]
-            Arguments for numpy.load 
-        See: https://numpy.org/doc/stable/reference/generated/numpy.load.html 
+            Arguments for numpy.load
+        See: https://numpy.org/doc/stable/reference/generated/numpy.load.html
         """
         super().__init__(paths, **file_based_datasource_kwargs)
 
