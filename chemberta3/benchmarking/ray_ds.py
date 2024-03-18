@@ -1,11 +1,12 @@
-from ray.data.datasource.file_based_datasource import FileBasedDatasource
-from ray.data.datasource.file_datasink import BlockBasedFileDatasink
-from typing import List, Optional, Union, Dict, Any, Iterator
 import ray
 import deepchem as dc
 import numpy as np
 from io import BytesIO
+from typing import List, Optional, Union, Dict, Any, Iterator
+
 from ray.data.block import Block, BlockAccessor
+from ray.data.datasource.file_based_datasource import FileBasedDatasource
+from ray.data.datasource.file_datasink import BlockBasedFileDatasink
 
 
 class RayDcDatasource(FileBasedDatasource):
@@ -54,3 +55,25 @@ class RayDcDatasource(FileBasedDatasource):
         buf.seek(0)
         data = dict(np.load(buf, allow_pickle=True, **self.numpy_load_args))
         yield BlockAccessor.batch_to_block(data)
+
+
+class RayDcDatasink(BlockBasedFileDatasink):
+
+    def __init__(
+        self,
+        path: str,
+        columns: List[str],
+        *,
+        file_format: str = "npz",
+        **file_datasink_kwargs,
+    ):
+        super().__init__(path, file_format=file_format, **file_datasink_kwargs)
+
+        self.columns = columns
+
+    def write_block_to_file(self, block: BlockAccessor,
+                            file: "pyarrow.NativeFile"):
+        data = {}
+        for column in self.columns:
+            data[column] = block.to_numpy(column)
+        np.savez(file, **data)
