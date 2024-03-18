@@ -1,4 +1,5 @@
 import torch
+import yaml
 import tempfile
 import os
 import deepchem as dc
@@ -73,24 +74,10 @@ def train_loop_per_worker(config):
                                  checkpoint=Checkpoint.from_directory(
                                      temp_checkpoint_dir))
 
+if __name__ == '__main__':
+    with open('config.yaml', 'r'):
+        config = yaml.load(f, Loader=yaml.SafeLoader)
 
-def train_ray(args, train_data_dir: str, num_workers: int, exp_name: str,
-              storage_path: str):
-    """Utility to train using ray
-
-    Parameters
-    ----------
-    train_data_dir: str
-        Path to training dataset
-    num_workers: int
-        Number of workers to use
-    exp_name: str
-        Name of the experiment
-    storage_path: str
-        Path to store experiment checkpoints.
-    """
-    ray.data.DataContext.get_current(
-    ).execution_options.verbose_progress = True
     use_gpu = True
 
     dataset_path = train_data_dir
