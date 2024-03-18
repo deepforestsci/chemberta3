@@ -60,19 +60,18 @@ def train_loop_per_worker(config):
             optimizer.step()
             loss = loss.detach().cpu().item()
 
-            if i % 10 == 0 and world_rank == 0:
-                metrics = {"loss": loss, "epoch": epoch, "iteration": i}
-                with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
-                    data = {
-                        'model': dc_model.model.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'epoch': epoch,
-                        'loss': loss
-                    }
-                    torch.save(data, "ckpt.pt")
-                    ray.train.report(metrics,
-                                     checkpoint=Checkpoint.from_directory(
-                                         temp_checkpoint_dir))
+            metrics = {"loss": loss, "epoch": epoch, "iteration": i}
+            with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+                data = {
+                    'model': dc_model.model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'epoch': epoch,
+                    'loss': loss
+                }
+                torch.save(data, "ckpt.pt")
+                ray.train.report(metrics,
+                                 checkpoint=Checkpoint.from_directory(
+                                     temp_checkpoint_dir))
 
 
 def train_ray(args, train_data_dir: str, num_workers: int, exp_name: str,
