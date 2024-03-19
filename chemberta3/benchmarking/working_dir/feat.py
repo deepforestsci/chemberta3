@@ -1,15 +1,9 @@
-from io import BytesIO
 import argparse
 import logging
 import deepchem as dc
-import numpy as np
 import ray
-from ray.data.block import Block, BlockAccessor
-from ray.data.datasource.file_based_datasource import FileBasedDatasource
-from ray.data.datasource.file_datasink import BlockBasedFileDatasink
+from data_utils import RayDataset
 
-from typing import Dict, Any, Optional, List, Iterator, Union
-from functools import partial
 
 logging.basicConfig(filename='ray.log', level=logging.INFO)
 
@@ -26,53 +20,6 @@ FEATURIZER_MAPPING = {
     "snap":
         dc.feat.SNAPFeaturizer(),
 }
-
-
-class RayDataset(dc.data.Dataset):
-
-    def __init__(self,
-                 dataset: ray.data.Dataset,
-                 x_column='x',
-                 y_column: Optional[str] = None):
-        self.dataset = dataset
-        self.x_column, self.y_column = x_column, y_column
-
-    def featurize(self, featurizer: Union[str, dc.feat.Featurizer], column):
-
-        class RayFeaturizer:
-
-            def __init__(self, featurizer, column):
-                import deepchem as dc
-                self.featurizer = featurizer
-                self.column = column
-
-            def __call__(self, batch):
-                batch['x'] = self.featurizer(batch[self.column])
-                return batch
-
-        ray_featurizer = RayFeaturizer(featurizer, column)
-        # Featurizing and dropping invalid SMILES strings
-        self.dataset = self.dataset.map_batches(ray_featurizer).filter(lambda row: np.array(row['x']).size > 0)
-
-    def write(self, path, columns):
-        datasink = RayDcDatasink(path, columns)
-        self.dataset.write_datasink(datasink)
-
-    def iterbatches(self,
-                    batch_size: int = 16,
-                    epochs=1,
-                    deterministic: bool = False,
-                    pad_batches: bool = False):
-        for batch in self.dataset.iter_batches(batch_size=batch_size,
-                                               batch_format='numpy'):
-            y = batch[self.y_column] if self.y_column else None
-            x = batch[self.x_column]
-            w, ids = np.ones(batch_size), np.ones(batch_size)
-            yield (x, y, w, ids)
-
-    @staticmethod
-    def read(path) -> ray.data.Dataset:
-        return RayDataset(ray.data.read_datasource(RayDcDatasource(path)))
 
 
 def get_paths_from_args(args):
