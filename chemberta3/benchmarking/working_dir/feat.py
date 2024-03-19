@@ -107,12 +107,16 @@ if __name__ == '__main__':
     argparser.add_argument('--featurizer', type=str, default='dummy')
     args = argparser.parse_args()
 
+    if args.dataset not in ['zinc250k', 'zinc1m', 'zinc10m', 'zinc100m']:
+        raise ValueError('Featurization is currently supported only for zinc datasets')
     csv_path, result_path = get_paths_from_args(args)
     test_is_empty_path(result_path)
 
     featurizer = FEATURIZER_MAPPING[args.featurizer]
 
-    ds = ray.data.read_csv(csv_path, parallelism=100).repartition(10_000)
+    ds = ray.data.read_csv(csv_path, parallelism=100)
+    if args.dataset == 'zinc100m':
+        ds = ds.repartition(10_000)
     ds = RayDataset(ds)
 
     ds.featurize(featurizer=featurizer, column='smiles')

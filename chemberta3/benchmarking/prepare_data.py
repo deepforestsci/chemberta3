@@ -1,4 +1,5 @@
 import os
+import sys
 import pickle
 import argparse
 import deepchem as dc
@@ -8,8 +9,7 @@ from functools import partial
 import json
 from ast import literal_eval as make_tuple
 import shutil
-from functools import partial
-from typing import List, Optional, Tuple
+from ray.job_submission import JobSubmissionClient
 
 import pandas as pd
 import logging
@@ -421,9 +421,12 @@ def prepare_vocab(dataset_name, data_dir, split_dataset):
 
 if __name__ == '__main__':
     argparser = argparse.ArgumentParser()
+    argparser.add_argument('--use-ray',
+                           default=False,
+                           action='store_true',
+                           help='enable multinode featurization using ray')
     argparser.add_argument("--dataset_name", type=str)
-    argparser.add_argument("--featurizer_name",
-                           type=str)
+    argparser.add_argument("--featurizer_name", type=str)
     argparser.add_argument('--multicpu_feat',
                            default=False,
                            action='store_true',
@@ -447,6 +450,15 @@ if __name__ == '__main__':
     args = argparser.parse_args()
 
     split_dataset = args.ttv_split
+    if args.use_ray:
+        command = f"python3 feat.py --featurizer {args.featurizer_name} --dataset {args.dataset_name}"
+        print ('job command is \n', command)
+        client = JobSubmissionClient("http://127.0.0.1:8265")
+        job_id = client.submit_job(
+            entrypoint=command,
+            runtime_env={"working_dir": "working_dir"})
+        sys.exit(0)
+
     if args.multicpu_feat:
         if args.csv_path is None:
             raise ValueError(
