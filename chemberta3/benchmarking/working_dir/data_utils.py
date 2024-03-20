@@ -60,6 +60,18 @@ class RayDcDatasource(FileBasedDatasource):
 
 
 class RayDcDatasink(BlockBasedFileDatasink):
+    """Ray Datasink
+
+    A datasink which is used to store featurized data as npz files.
+
+    Same as
+    https://github.com/ray-project/ray/blob/8b73f185fa51d95c95f183778e3ecc716cfdffc0/python/ray/data/datasource/numpy_datasource.py#L15
+    except that this can write multiple coulmns of values (x, y, ...) where as
+    Ray's implementation of Numpy datasink can read only a single column.
+
+    RayDcDatasink is used by RayDataset to read and write custom formats of
+    data.
+    """
 
     def __init__(
         self,
@@ -69,12 +81,21 @@ class RayDcDatasink(BlockBasedFileDatasink):
         file_format: str = "npz",
         **file_datasink_kwargs,
     ):
+        """
+        Parameters
+        ----------
+        paths: Union[str, List[str]]
+            Path to dataset
+        columns: List[str]
+            Columns to store in disk
+        """
         super().__init__(path, file_format=file_format, **file_datasink_kwargs)
 
         self.columns = columns
 
     def write_block_to_file(self, block: BlockAccessor,
                             file: "pyarrow.NativeFile"):
+        """Writes a block of data"""
         data = {}
         for column in self.columns:
             data[column] = block.to_numpy(column)
@@ -144,7 +165,16 @@ class RayDataset(dc.data.Dataset):
         self.dataset = self.dataset.map_batches(ray_featurizer).filter(
             lambda row: np.array(row['x']).size > 0)
 
-    def write(self, path, columns):
+    def write(self, path: str, columns: List[str]):
+        """Write dataset to the path
+
+        Parameters
+        ----------
+        path: str
+            Path to store the dataset
+        columns: List[str]
+            columns of the dataset to write
+        """
         datasink = RayDcDatasink(path, columns)
         self.dataset.write_datasink(datasink)
 
@@ -153,6 +183,28 @@ class RayDataset(dc.data.Dataset):
                     epochs=1,
                     deterministic: bool = False,
                     pad_batches: bool = False):
+        """Get an object that iterates over minibatches from the dataset.
+
+        Each minibatch is returned as a tuple of four numpy arrays:
+        `(X, y, w, ids)`.
+
+        Parameters
+        ----------
+        batch_size: int, optional (default 16)
+            Number of elements in each batch.
+        epochs: int, default 1
+            Number of epochs to walk over dataset.
+        deterministic: bool, optional (default False)
+            If True, follow deterministic order.
+        pad_batches: bool, optional (default False)
+            If True, pad each batch to `batch_size`.
+
+        Returns
+        -------
+        Iterator[Batch]
+            Generator which yields tuples of four numpy arrays `(X, y, w, ids)`.
+        """
+
         for batch in self.dataset.iter_batches(batch_size=batch_size,
                                                batch_format='numpy'):
             y = batch[self.y_column] if self.y_column else None
@@ -161,5 +213,17 @@ class RayDataset(dc.data.Dataset):
             yield (x, y, w, ids)
 
     @staticmethod
-    def read(path) -> ray.data.Dataset:
+    def read(path: str) -> ray.data.Dataset:
+        """Read a dataset from a path
+
+        Parameters
+        ----------
+        path: str
+            Path to the dataset
+
+        Returns
+        -------
+        ray.data.Dataset
+            A Ray Dataset object.
+        """
         return RayDataset(ray.data.read_datasource(RayDcDatasource(path)))
