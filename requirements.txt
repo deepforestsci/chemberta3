@@ -7,6 +7,7 @@ torch-geometric
 dgllife
 transformers
 tokenizers
+pyprithvi
 # select backend for torch (cuda, rocm)
 --extra-index-url https://download.pytorch.org/whl/cpu 
 torch
