@@ -162,7 +162,4 @@ def test_main():
     args = Args("delaney", "scaffold", "dummy", bucket_name, file_key,
                 [0.0001, 0.001], [32, 64], [1, 2])
     best_score, best_params, best_model = main(args)
-    print(best_score)
-    print(best_params)
-    print(best_model)
     assert best_score > 0
