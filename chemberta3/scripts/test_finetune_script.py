@@ -2,12 +2,11 @@ import deepchem as dc
 import numpy as np
 from deepchem.models.torch_models import Chemberta
 from deepchem.molnet import load_delaney
-from chemberta_finetune_script import load_dataset, get_tuning_utils, download_pretrained_model_from_S3, modify_model_keys, hyperparam_search, evaluate_model, main
+from chemberta_finetune_script import load_dataset, get_tuning_utils, download_pretrained_model_from_S3, modify_model_keys, hyperparam_search, evaluate_model, main, filter_datasets
 import boto3
 import torch
 import tempfile
 import os
-
 
 def test_load_dataset():
     dataset = 'delaney'
@@ -72,7 +71,6 @@ def test_load_dataset():
     data = load_dataset(dataset, splitter='scaffold', featurizer='dummy')
     assert list(data[1][0].tasks) == ['FDA_APPROVED', 'CT_TOX']
 
-
 def test_get_tuning_utils():
 
     datasets = ['delaney', 'bace_regress', 'clearance', 'lipo']
@@ -88,7 +86,6 @@ def test_get_tuning_utils():
         assert output[0] == 'classification'
         assert output[1] == True
         assert output[3] == 'roc_auc_score'
-
 
 def test_modify_model_keys_and_download_from_S3():
 
@@ -109,7 +106,6 @@ def test_modify_model_keys_and_download_from_S3():
     assert not any(
         'module.' in key
         for key in modified_checkpoint_data['model_state_dict'].keys())
-
 
 def test_hyperparam_search_and_evaluate_model():
 
@@ -139,6 +135,35 @@ def test_hyperparam_search_and_evaluate_model():
 
     assert best_results_with_transform[0] != best_results_without_transform[0]
 
+def test_filter_datasets():
+    datasets = [
+        'delaney', 'bace_regression', 'clearance', 'lipo', 'clintox',
+        'bace_classification', 'bbbp', 'hiv', 'sider', 'tox21'
+    ]
+    for dataset in datasets:
+        load_fn = getattr(dc.molnet, f"load_{dataset}")
+        loader = load_fn(featurizer=dc.feat.DummyFeaturizer(),
+                         splitter="scaffold")
+        tasks, dataset, transformers = loader
+        train, val, test = dataset
+        initial_train_ratio = len(train) / (len(train) + len(val) + len(test))
+        initial_val_ratio = len(val) / (len(train) + len(val) + len(test))
+        initial_test_ratio = len(test) / (len(train) + len(val) + len(test))
+
+        filtered_train_dataset, filtered_val_dataset, filtered_test_dataset = filter_datasets(
+            dataset)
+        final_train_ratio = len(filtered_train_dataset) / (
+            len(filtered_train_dataset) + len(filtered_val_dataset) +
+            len(filtered_test_dataset))
+        final_val_ratio = len(filtered_val_dataset) / (
+            len(filtered_train_dataset) + len(filtered_val_dataset) +
+            len(filtered_test_dataset))
+        final_test_ratio = len(filtered_test_dataset) / (
+            len(filtered_train_dataset) + len(filtered_val_dataset) +
+            len(filtered_test_dataset))
+        assert np.allclose(initial_train_ratio, final_train_ratio, atol=0.1)
+        assert np.allclose(initial_val_ratio, final_val_ratio, atol=0.1)
+        assert np.allclose(initial_test_ratio, final_test_ratio, atol=0.1)
 
 class Args:
 
@@ -153,7 +178,6 @@ class Args:
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.epochs = epochs
-
 
 def test_main():
 

@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 featurizers = {'dummy': dc.feat.DummyFeaturizer}
 
-regression_dataset = ['delaney', 'bace_regress', 'clearance', 'lipo']
+regression_dataset = ['delaney', 'bace_regression', 'clearance', 'lipo']
 classification_dataset = [
-    'clintox', 'bace_class', 'bbbp', 'hiv', 'sider', 'tox21'
+    'clintox', 'bace_classification', 'bbbp', 'hiv', 'sider', 'tox21'
 ]
 
 
@@ -420,12 +420,27 @@ def evaluate_model(tuning_results: List,
     return best_results
 
 
+def filter_datasets(dataset):
+
+    train, val, test = dataset
+    selected_train_indices = [i for i, x in enumerate(train.X) if len(x) < 200]
+    selected_val_indices = [i for i, x in enumerate(val.X) if len(x) < 200]
+    selected_test_indices = [i for i, x in enumerate(test.X) if len(x) < 200]
+    # Apply the selection
+    filtered_train_dataset = train.select(selected_train_indices)
+    filtered_val_dataset = val.select(selected_val_indices)
+    filtered_test_dataset = test.select(selected_test_indices)
+    return filtered_train_dataset, filtered_val_dataset, filtered_test_dataset
+
+
 def main(args):
 
     tasks, dataset, transformers = load_dataset(dataset=args.dataset,
                                                 splitter=args.splitter,
                                                 featurizer=args.featurizer)
-    train, val, test = dataset
+    # train, val, test = dataset
+    filtered_train_dataset, filtered_val_dataset, filtered_test_dataset = filter_datasets(
+        dataset)
 
     task, use_max, metric, metric_out = get_tuning_utils(dataset=args.dataset)
 
@@ -456,15 +471,15 @@ def main(args):
     # Creating optimizer and searching over hyperparameters
     tuning_results = []
     tuning_results = hyperparam_search(params=params,
-                                       train=train,
-                                       val=val,
+                                       train=filtered_train_dataset,
+                                       val=filtered_val_dataset,
                                        metric=metric,
                                        transformers=transformers,
                                        epochs=args.epochs,
                                        use_max=use_max,
                                        logdir=log_dir)
     best_results = evaluate_model(tuning_results=tuning_results,
-                                  test=test,
+                                  test=filtered_test_dataset,
                                   metric=metric,
                                   epochs=args.epochs,
                                   metric_out=metric_out,
