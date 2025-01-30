@@ -43,7 +43,6 @@ Install Ray
 
     pip install ray
 
-
 2. Update the paramaters in `chemberta3/benchmarking/working_dir/config.json` file to submit a training job.
 
 3. Submit the training job using:
