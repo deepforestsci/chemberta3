@@ -159,7 +159,6 @@ class RandomHyperparamOpt(HyperparamOpt):
         >>> RandomHyperparamOpt.generate_random_hyperparam_values(params_dict, n)  # doctest: +SKIP
         [{'a': 3, 'b': 7, 'c': 10.619700740985433}]
         """
-        print("helloooo", params_dict)
         hyperparam_keys, hyperparam_values = [], []
         for key, values in params_dict.items():
             if callable(values):
