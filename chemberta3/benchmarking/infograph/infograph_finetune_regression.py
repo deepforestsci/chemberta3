@@ -6,7 +6,7 @@ import deepchem as dc
 from deepchem.models.torch_models import InfoGraphModel
 
 
-def infograph_finetune(dataset: str, epochs: int, pretrained_checkpoint_path: str, output_filename: str, n_tasks: int):
+def infograph_finetune_regression(dataset: str, epochs: int, pretrained_checkpoint_path: str, output_filename: str, n_tasks: int):
 
     finetune_train_data = dc.data.DiskDataset('')
     finetune_valid_data = dc.data.DiskDataset('')
@@ -69,7 +69,7 @@ if __name__ == "__main__":
                            help='output result filename',
                            default=None)
     args = argparser.parse_args()
-    infograph_finetune(dataset=args.dataset, 
+    infograph_finetune_regression(dataset=args.dataset, 
                         epochs=args.epochs, 
                         pretrained_checkpoint_path=args.pretrained_checkpoint_path, 
                         output_filename=args.output_filename,
