@@ -1,0 +1,19 @@
+python3 finetune_pubchem_light_classification.py \
+        --device cuda \
+        --batch_size 32  \
+        --n_head 12 \
+        --n_layer 12 \
+        --n_embd 768 \
+        --d_dropout 0.1 \
+        --dropout 0.1 \
+        --lr_start 3e-5 \
+        --num_workers 1\
+        --max_epochs 10 \
+        --num_feats 32 \
+        --seed_path '' \
+        --dataset_name bace \
+        --data_root './../../data/finetune_datasets/data/bace' \
+        --measure_name Class \
+        --dims 768 768 768 1 \
+        --checkpoints_folder './checkpoints_bace_test' \
+        --num_classes 2 \
