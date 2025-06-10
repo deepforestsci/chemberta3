@@ -2,6 +2,7 @@ import os
 import gc
 import yaml
 import shutil
+import pathlib
 import argparse
 import pickle
 from dataclasses import dataclass
@@ -12,7 +13,6 @@ import pandas as pd
 import torch
 
 import deepchem as dc
-from deepchem.models import GraphConvModel, WeaveModel
 from deepchem.models.torch_models import GroverModel, Chemberta, InfoGraphModel, GNNModular, InfoGraphStarModel
 from deepchem.models.torch_models import HuggingFaceModel, ModularTorchModel, InfoMax3DModular
 from deepchem.feat.vocabulary_builders import GroverAtomVocabularyBuilder, GroverBondVocabularyBuilder
@@ -30,8 +30,6 @@ MODEL_MAPPING = {
     "infograph": InfoGraphModel,
     'infographstar': InfoGraphStarModel,
     "random_forest": load_random_forest,
-    "graphconv": GraphConvModel,
-    "weave": WeaveModel,
     "chemberta": Chemberta,
     "GroverModel": GroverModel,
     "snap": GNNModular,
@@ -176,8 +174,8 @@ def train(args,
     torch.cuda.empty_cache()
     gc.collect()
     logger = logging.getLogger('train_log')
-    # train_dataset = dc.data.DiskDataset(data_dir=train_data_dir)
-    # train_dataset._memory_cache_size = 0
+    train_dataset = dc.data.DiskDataset(data_dir=train_data_dir)
+    train_dataset._memory_cache_size = 0
     logger.info('Loaded training data set')
 
     if valid_data_dir:
@@ -211,8 +209,10 @@ def train(args,
             'mode'] == 'classification':
         classification = True
 
-    transformers_path = os.path.join('data', args.dataset_name,
-                                     args.featurizer_name, 'transformer.pckl')
+    # Transformers for scaling data exists in the directory parent to the
+    # train data dir in a file named transformers.pckl
+    transformers_dir = pathlib.Path(train_data_dir).parent
+    transformers_path = transformers_dir.joinpath('transformers.pkl')
     with open(transformers_path, 'rb') as f:
         transformers = pickle.load(f)
     if not classification:
@@ -464,6 +464,10 @@ if __name__ == "__main__":
                            type=str,
                            help="specify the path to the storage",
                            default="s3://chemberta3/ray-exps")
+    argparser.add_argument("--lr_scheduler",
+                           type=str,
+                           help="specify lr scheduler",
+                           default=None)
     args = argparser.parse_args()
 
     if args.config:
